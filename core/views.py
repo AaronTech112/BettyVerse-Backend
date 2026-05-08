@@ -1,19 +1,39 @@
 import json
+import importlib
 from decimal import Decimal, InvalidOperation
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.text import slugify
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .forms import BookingRequestForm, CustomUserCreationForm
 from .models import AddOn, Address, Booking, Order, OrderItem, OrderItemAddOn, Package
+
+try:
+    import stripe
+except Exception:  # pragma: no cover - optional dependency fallback
+    stripe = None
+
+
+def _get_stripe_sdk():
+    global stripe
+    if stripe is not None:
+        return stripe
+    try:
+        stripe = importlib.import_module("stripe")
+    except Exception:
+        return None
+    return stripe
 
 
 def _resolve_package_image_url(package):
@@ -715,3 +735,115 @@ class CheckoutPayView(LoginRequiredMixin, View):
                 "message": f"{method.title()} payment confirmed successfully.",
             }
         )
+
+
+class CheckoutStripeSessionView(LoginRequiredMixin, View):
+    login_url = reverse_lazy("login")
+
+    def post(self, request, *args, **kwargs):
+        stripe_sdk = _get_stripe_sdk()
+        if stripe_sdk is None:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Stripe SDK is not installed in the active Python environment. Run: python3 -m pip install --user --break-system-packages stripe",
+                },
+                status=500,
+            )
+        if not settings.STRIPE_SECRET_KEY:
+            return JsonResponse(
+                {"ok": False, "error": "Stripe secret key is missing in server settings."},
+                status=500,
+            )
+
+        order = _get_or_create_cart_order(request.user)
+        cart = _serialize_cart_order(order)
+        if not cart["items"]:
+            return JsonResponse({"ok": False, "error": "Your cart is empty."}, status=400)
+
+        address = (
+            Address.objects.filter(user=request.user, is_default=True).first()
+            or Address.objects.filter(user=request.user).first()
+        )
+        if address and order.address_id != address.id:
+            order.address = address
+            order.save(update_fields=["address"])
+
+        stripe_sdk.api_key = settings.STRIPE_SECRET_KEY
+        success_url = request.build_absolute_uri(reverse("cart")) + "?payment=success&session_id={CHECKOUT_SESSION_ID}"
+        cancel_url = request.build_absolute_uri(reverse("cart")) + "?payment=cancelled"
+
+        line_items = []
+        for item in cart["items"]:
+            unit_amount = int(round(Decimal(str(item["price"])) * Decimal("100")))
+            if unit_amount <= 0:
+                continue
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": settings.STRIPE_CURRENCY,
+                        "product_data": {
+                            "name": item["name"] or "Package",
+                            "description": item["summary"] or item["category"] or "BettyVerse package",
+                        },
+                        "unit_amount": unit_amount,
+                    },
+                    "quantity": int(item.get("quantity") or 1),
+                }
+            )
+        if not line_items:
+            return JsonResponse({"ok": False, "error": "No payable items in cart."}, status=400)
+
+        try:
+            session = stripe_sdk.checkout.Session.create(
+                mode="payment",
+                payment_method_types=["card"],
+                line_items=line_items,
+                metadata={
+                    "order_id": str(order.id),
+                    "user_id": str(request.user.id),
+                },
+                success_url=success_url,
+                cancel_url=cancel_url,
+                client_reference_id=str(order.id),
+            )
+        except Exception as exc:
+            return JsonResponse({"ok": False, "error": f"Unable to start Stripe checkout: {exc}"}, status=400)
+
+        return JsonResponse({"ok": True, "checkout_url": session.url, "session_id": session.id})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class CheckoutStripeWebhookView(View):
+    def post(self, request, *args, **kwargs):
+        stripe_sdk = _get_stripe_sdk()
+        if stripe_sdk is None or not settings.STRIPE_SECRET_KEY:
+            return HttpResponse(status=400)
+
+        stripe_sdk.api_key = settings.STRIPE_SECRET_KEY
+        payload = request.body
+        sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
+
+        try:
+            if settings.STRIPE_WEBHOOK_SECRET:
+                event = stripe_sdk.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+            else:
+                event = json.loads(payload.decode("utf-8") or "{}")
+        except Exception:
+            return HttpResponse(status=400)
+
+        event_type = event.get("type") if isinstance(event, dict) else getattr(event, "type", "")
+        event_data = event.get("data", {}) if isinstance(event, dict) else getattr(event, "data", {})
+        obj = event_data.get("object", {}) if isinstance(event_data, dict) else getattr(event_data, "object", {})
+
+        if event_type == "checkout.session.completed":
+            metadata = obj.get("metadata", {}) if isinstance(obj, dict) else {}
+            order_id = metadata.get("order_id") or (obj.get("client_reference_id") if isinstance(obj, dict) else None)
+            payment_status = obj.get("payment_status") if isinstance(obj, dict) else None
+            if order_id and payment_status == "paid":
+                order = Order.objects.filter(id=order_id).first()
+                if order and order.status != "paid":
+                    order.status = "paid"
+                    order.save(update_fields=["status"])
+
+        return HttpResponse(status=200)

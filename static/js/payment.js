@@ -4,7 +4,8 @@
   var ENDPOINTS = {
     cartData: "/cart/data/",
     checkoutAddress: "/checkout/address/",
-    checkoutPay: "/checkout/pay/"
+    checkoutPay: "/checkout/pay/",
+    stripeSession: "/checkout/stripe/session/"
   };
   var DEFAULT_ADDRESS = {
     label: "Home",
@@ -69,9 +70,9 @@
       confirmLabel: "Pay",
       previewClass: "is-card",
       caption:
-        "Card checkout preview for frontend mode. Backend gateway wiring can be added later.",
+        "Secure card checkout powered by Stripe.",
       note:
-        "Card payments are currently in preview mode only. No live card charge will be made.",
+        "You will be redirected to Stripe to complete your card payment securely.",
       brand: "VISA",
       type: "Credit Card",
       number: "4315  0245448  00345",
@@ -685,6 +686,30 @@
     if (paymentElements.liveArea) {
       paymentElements.liveArea.hidden = false;
       paymentElements.liveArea.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    if (activeMethod === "card") {
+      showStatus("info", "Redirecting to secure Stripe checkout...");
+      requestJson(ENDPOINTS.stripeSession, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfTokenFromCookie(),
+          Accept: "application/json"
+        },
+        body: JSON.stringify({})
+      })
+        .then(function (payload) {
+          if (!payload.checkout_url) {
+            throw new Error("Stripe checkout URL was not returned.");
+          }
+          window.location.href = payload.checkout_url;
+        })
+        .catch(function (error) {
+          showStatus("error", error.message || "Unable to open Stripe checkout right now.");
+        });
+      return;
     }
 
     requestJson(ENDPOINTS.checkoutPay, {

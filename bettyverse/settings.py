@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +26,7 @@ SECRET_KEY = 'django-insecure-10&v)+@hv7g8)b9mc-1=0l98iy29itq-4vbni&okx24(j__=!v
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -129,3 +130,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'home'
+
+# Stripe settings (fill from your client's Stripe account credentials).
+STRIPE_SECRET_KEY = os.getenv(
+    "STRIPE_SECRET_KEY",
+    "sk_test_51TTp0uKlqyjCGcOJVV0qeN3gD7LEU6OxtdzvvqbeCXuOJb6SbOPfg3tQM8r75QD2Air5aQrBkFRxvkQjhsWWX3vx00yUmZm4Tx",
+).strip()
+STRIPE_PUBLISHABLE_KEY = os.getenv(
+    "STRIPE_PUBLISHABLE_KEY",
+    "pk_test_51TTp0uKlqyjCGcOJPRdJZw1MU6c6jwjXpNETjpTgwKzj7UOfAJEHrK8JuDalY3sL230TuPRfsHaLpABtYQkdy1XV00GADjLvwF",
+).strip()
+STRIPE_RESTRICTED_KEY = os.getenv(
+    "STRIPE_RESTRICTED_KEY",
+    "rk_test_51TTp0uKlqyjCGcOJYecHOww3dt6lw39aOoHeJBf9KWKqnP16z7TDDGEynNkNjM0PZ9nR3qsrRm7ATsYgEvfnbmul00oYC2RL6L",
+).strip()
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp").strip().lower() or "gbp"
