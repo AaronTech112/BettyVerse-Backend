@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
 from .models import Booking, User
 
@@ -24,6 +25,19 @@ class CustomUserCreationForm(UserCreationForm):
         if commit:
             user.save()
         return user
+
+
+class EmailAuthenticationForm(AuthenticationForm):
+    username = forms.EmailField(
+        label="Email",
+        widget=forms.EmailInput(
+            attrs={
+                "autofocus": True,
+                "placeholder": "Email address",
+                "autocomplete": "email",
+            }
+        ),
+    )
 
 
 class BookingRequestForm(forms.ModelForm):

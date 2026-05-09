@@ -16,7 +16,7 @@ from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .forms import BookingRequestForm, CustomUserCreationForm
+from .forms import BookingRequestForm, CustomUserCreationForm, EmailAuthenticationForm
 from .models import AddOn, Address, Booking, Order, OrderItem, OrderItemAddOn, Package
 
 try:
@@ -378,10 +378,11 @@ class SignUpView(CreateView):
 
 class CustomLoginView(LoginView):
     template_name = 'login/login_index.html'
+    form_class = EmailAuthenticationForm
     redirect_authenticated_user = True
 
     def form_invalid(self, form):
-        messages.error(self.request, "Invalid username or password.")
+        messages.error(self.request, "Invalid email or password.")
         return super().form_invalid(form)
 
 
