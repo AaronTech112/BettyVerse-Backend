@@ -3,7 +3,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import NewsletterCampaign, NewsletterSubscriber, User
+from .models import Booking, NewsletterCampaign, NewsletterSubscriber, User
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -162,3 +162,40 @@ class NewsletterFlowTests(TestCase):
         self.assertEqual(campaign.recipient_count, 2)
         self.assertEqual(len(mail.outbox), 2)
         self.assertEqual(sorted(message.to[0] for message in mail.outbox), ["active1@example.com", "active2@example.com"])
+
+
+class BookingFlowTests(TestCase):
+    def test_booking_submission_accepts_acknowledgement_checkboxes(self):
+        user = User.objects.create_user(
+            username="bookinguser",
+            email="booking@example.com",
+            password="StrongPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("booking"),
+            {
+                "full_name": "Booking User",
+                "phone": "1234567890",
+                "email": "booking@example.com",
+                "event_type": "Birthday",
+                "event_datetime": "2026-06-15T18:30",
+                "theme": "Blue",
+                "occasion_details": "Surprise setup",
+                "special_requests": "Balloon styling",
+                "property_type": "home",
+                "parking_availability": "yes",
+                "access_instructions": "Use the side gate",
+                "budget": "250",
+                "photo_video_permission": "yes",
+                "inspiration_links": "",
+                "travel_fees_ack": "on",
+                "deposit_required_ack": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("dashboard"))
+        self.assertTrue(Booking.objects.filter(user=user, event_type="Birthday").exists())

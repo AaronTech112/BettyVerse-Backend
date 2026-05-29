@@ -231,8 +231,8 @@
                         </div>
                         <div class="booking_form_section">
                            <h3>Agreement</h3>
-                           <label class="booking_check"><input type="checkbox" name="travelFees" required> <span>Travel fees may apply</span></label>
-                           <label class="booking_check"><input type="checkbox" name="depositRequired" required> <span>Deposit required to secure booking</span></label>
+                           <label class="booking_check"><input type="checkbox" name="travel_fees_ack" required {% if form.travel_fees_ack.value %}checked{% endif %}> <span>Travel fees may apply</span></label>
+                           <label class="booking_check"><input type="checkbox" name="deposit_required_ack" required {% if form.deposit_required_ack.value %}checked{% endif %}> <span>Deposit required to secure booking</span></label>
                         </div>
                         <div class="booking_form_actions">
                            <button class="booking_submit" type="submit">Submit Booking</button>
