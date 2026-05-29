@@ -48,6 +48,35 @@ class EmailAuthenticationForm(AuthenticationForm):
     }
 
 
+class EmailVerificationForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={
+                "placeholder": "Email address",
+                "autocomplete": "email",
+            }
+        )
+    )
+    code = forms.CharField(
+        min_length=6,
+        max_length=6,
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "6-digit verification code",
+                "inputmode": "numeric",
+                "autocomplete": "one-time-code",
+                "pattern": "[0-9]{6}",
+            }
+        ),
+    )
+
+    def clean_code(self):
+        code = str(self.cleaned_data["code"]).strip()
+        if not code.isdigit():
+            raise forms.ValidationError("Enter the 6-digit code from your email.")
+        return code
+
+
 class BookingRequestForm(forms.ModelForm):
     event_datetime = forms.DateTimeField(
         input_formats=(

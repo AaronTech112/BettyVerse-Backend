@@ -3,6 +3,9 @@ from django.contrib.auth.models import AbstractUser
 
 class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, null=True)
+    is_email_verified = models.BooleanField(default=False)
+    email_verification_code = models.CharField(max_length=6, blank=True)
+    email_verification_sent_at = models.DateTimeField(blank=True, null=True)
     preferred_contact = models.CharField(
         max_length=10,
         choices=[('email', 'Email'), ('phone', 'Phone'), ('whatsapp', 'WhatsApp')],

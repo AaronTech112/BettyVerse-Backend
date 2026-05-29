@@ -25,6 +25,7 @@ from .views import (
     PackagesView,
     ServicesView,
     SignUpView,
+    VerifyEmailView,
 )
 
 urlpatterns = [
@@ -45,6 +46,7 @@ urlpatterns = [
     path('checkout/stripe/webhook/', CheckoutStripeWebhookView.as_view(), name='checkout_stripe_webhook'),
     path('blog/', BlogView.as_view(), name='blog'),
     path('signup/', SignUpView.as_view(), name='signup'),
+    path('verify-email/', VerifyEmailView.as_view(), name='verify_email'),
     path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),

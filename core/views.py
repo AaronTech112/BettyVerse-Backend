@@ -1,12 +1,16 @@
 import json
 import importlib
+import random
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.text import slugify
+from django.utils import timezone
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView
@@ -16,13 +20,16 @@ from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .forms import BookingRequestForm, CustomUserCreationForm, EmailAuthenticationForm
-from .models import AddOn, Address, Booking, Order, OrderItem, OrderItemAddOn, Package
+from .forms import BookingRequestForm, CustomUserCreationForm, EmailAuthenticationForm, EmailVerificationForm
+from .models import AddOn, Address, Booking, Order, OrderItem, OrderItemAddOn, Package, User
 
 try:
     import stripe
 except Exception:  # pragma: no cover - optional dependency fallback
     stripe = None
+
+
+VERIFICATION_CODE_TTL_MINUTES = 15
 
 
 def _get_stripe_sdk():
@@ -34,6 +41,46 @@ def _get_stripe_sdk():
     except Exception:
         return None
     return stripe
+
+
+def _generate_email_verification_code():
+    return f"{random.SystemRandom().randint(0, 999999):06d}"
+
+
+def _issue_email_verification_code(user):
+    code = _generate_email_verification_code()
+    user.email_verification_code = code
+    user.email_verification_sent_at = timezone.now()
+    user.save(update_fields=["email_verification_code", "email_verification_sent_at"])
+    return code
+
+
+def _send_email_verification_code(user):
+    code = _issue_email_verification_code(user)
+    subject = "Your BettyVerse verification code"
+    message = (
+        f"Hi {user.get_full_name().strip() or user.username},\n\n"
+        f"Your BettyVerse verification code is: {code}\n\n"
+        f"This code expires in {VERIFICATION_CODE_TTL_MINUTES} minutes.\n"
+        "If you did not create this account, you can ignore this email."
+    )
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+
+
+def _email_verification_code_is_valid(user, code):
+    sent_at = user.email_verification_sent_at
+    if not sent_at or not user.email_verification_code:
+        return False
+    if user.email_verification_code != str(code).strip():
+        return False
+    expires_at = sent_at + timedelta(minutes=VERIFICATION_CODE_TTL_MINUTES)
+    return timezone.now() <= expires_at
 
 
 def _resolve_package_image_url(package):
@@ -400,7 +447,6 @@ class BlogView(TemplateView):
 
 class SignUpView(CreateView):
     form_class = CustomUserCreationForm
-    success_url = reverse_lazy('dashboard')
     template_name = 'login/signup.html'
     
     def dispatch(self, request, *args, **kwargs):
@@ -409,14 +455,111 @@ class SignUpView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        login(self.request, self.object)
-        messages.success(self.request, "Welcome to BettyVerse. Your account is ready.")
-        return response
+        self.object = form.save(commit=False)
+        self.object.email = self.object.email.strip().lower()
+        self.object.is_active = False
+        self.object.is_email_verified = False
+        self.object.save()
+
+        self.request.session["pending_verification_user_id"] = self.object.id
+
+        try:
+            _send_email_verification_code(self.object)
+            messages.success(self.request, "We sent a verification code to your email address.")
+        except Exception:
+            messages.error(
+                self.request,
+                "Your account was created, but we could not send the verification code right now. Please try resending it.",
+            )
+
+        return redirect("verify_email")
 
     def form_invalid(self, form):
         messages.error(self.request, "Please correct the highlighted errors and try again.")
         return super().form_invalid(form)
+
+
+class VerifyEmailView(TemplateView):
+    template_name = "login/verify_email.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and getattr(request.user, "is_email_verified", False):
+            return redirect("dashboard")
+        return super().dispatch(request, *args, **kwargs)
+
+    def _get_pending_user(self):
+        user_id = self.request.session.get("pending_verification_user_id")
+        if user_id:
+            user = User.objects.filter(id=user_id).first()
+            if user and not user.is_email_verified:
+                return user
+
+        email = str(
+            self.request.POST.get("email")
+            or self.request.GET.get("email")
+            or ""
+        ).strip().lower()
+        if email:
+            return User.objects.filter(email__iexact=email, is_email_verified=False).first()
+        return None
+
+    def _get_form(self, user=None):
+        initial_email = user.email if user else str(self.request.GET.get("email") or "").strip().lower()
+        return EmailVerificationForm(initial={"email": initial_email})
+
+    def get(self, request, *args, **kwargs):
+        user = self._get_pending_user()
+        if not user:
+            messages.info(request, "Sign up first so we can send your verification code.")
+            return redirect("signup")
+        form = self._get_form(user)
+        return self.render_to_response(self.get_context_data(form=form, verification_email=user.email))
+
+    def post(self, request, *args, **kwargs):
+        user = self._get_pending_user()
+        if not user:
+            messages.info(request, "Sign up first so we can send your verification code.")
+            return redirect("signup")
+
+        if request.POST.get("action") == "resend":
+            try:
+                _send_email_verification_code(user)
+                messages.success(request, "A new verification code has been sent.")
+            except Exception:
+                messages.error(request, "We could not resend the verification code right now. Please try again.")
+            return redirect(f"{reverse('verify_email')}?email={user.email}")
+
+        form = EmailVerificationForm(request.POST)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form, verification_email=user.email))
+
+        submitted_email = form.cleaned_data["email"].strip().lower()
+        submitted_code = form.cleaned_data["code"]
+        if submitted_email != user.email.lower():
+            form.add_error("email", "Please use the same email address you signed up with.")
+            return self.render_to_response(self.get_context_data(form=form, verification_email=user.email))
+
+        if not _email_verification_code_is_valid(user, submitted_code):
+            form.add_error("code", "That verification code is invalid or has expired.")
+            return self.render_to_response(self.get_context_data(form=form, verification_email=user.email))
+
+        user.is_active = True
+        user.is_email_verified = True
+        user.email_verification_code = ""
+        user.email_verification_sent_at = None
+        user.save(
+            update_fields=[
+                "is_active",
+                "is_email_verified",
+                "email_verification_code",
+                "email_verification_sent_at",
+            ]
+        )
+
+        self.request.session.pop("pending_verification_user_id", None)
+        login(request, user)
+        messages.success(request, "Your email has been verified. Welcome to BettyVerse.")
+        return redirect("dashboard")
 
 class CustomLoginView(LoginView):
     template_name = 'login/login_index.html'
@@ -424,6 +567,12 @@ class CustomLoginView(LoginView):
     redirect_authenticated_user = True
 
     def form_invalid(self, form):
+        attempted_email = str(self.request.POST.get("username") or "").strip().lower()
+        pending_user = User.objects.filter(email__iexact=attempted_email, is_email_verified=False).first()
+        if pending_user:
+            self.request.session["pending_verification_user_id"] = pending_user.id
+            messages.info(self.request, "Please verify your email address before logging in.")
+            return redirect(f"{reverse('verify_email')}?email={pending_user.email}")
         messages.error(self.request, "Invalid email or password.")
         return super().form_invalid(form)
 
