@@ -109,7 +109,8 @@ textarea {
 }
 
 .admin-auth__notes li::before {
-  content: "+";`r`n  margin-right: 10px;
+  content: "+";
+  margin-right: 10px;
 }
 
 .admin-auth__panel {
@@ -306,13 +307,16 @@ textarea {
 }
 
 .admin-nav__item {
+  display: block;
   text-align: left;
   min-height: 50px;
+  line-height: 50px;
   padding: 0 16px;
   border-radius: 14px;
   background: transparent;
   color: #38577d;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .admin-nav__item.is-active,
@@ -675,4 +679,3 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
-

@@ -19,6 +19,32 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+
+class NewsletterSubscriber(models.Model):
+    email = models.EmailField(unique=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='newsletter_subscriptions')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.email
+
+
+class NewsletterCampaign(models.Model):
+    subject = models.CharField(max_length=255)
+    body = models.TextField()
+    sent_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_newsletter_campaigns')
+    recipient_count = models.PositiveIntegerField(default=0)
+    sent_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return self.subject
+
 class Package(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),

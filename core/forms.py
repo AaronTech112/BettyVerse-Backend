@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm
-from .models import Booking, User
+from .models import Booking, NewsletterCampaign, NewsletterSubscriber, User
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -75,6 +75,32 @@ class EmailVerificationForm(forms.Form):
         if not code.isdigit():
             raise forms.ValidationError("Enter the 6-digit code from your email.")
         return code
+
+
+class NewsletterSubscriptionForm(forms.Form):
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={
+                "class": "footer_newsletter_input",
+                "placeholder": "Enter your email address",
+                "aria-label": "Email address",
+                "autocomplete": "email",
+            }
+        )
+    )
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()
+
+
+class NewsletterCampaignForm(forms.ModelForm):
+    class Meta:
+        model = NewsletterCampaign
+        fields = ("subject", "body")
+        widgets = {
+            "subject": forms.TextInput(attrs={"placeholder": "Newsletter subject"}),
+            "body": forms.Textarea(attrs={"rows": 10, "placeholder": "Write your newsletter email here"}),
+        }
 
 
 class BookingRequestForm(forms.ModelForm):

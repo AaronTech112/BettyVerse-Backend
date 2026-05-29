@@ -1,6 +1,7 @@
 import json
 import importlib
 import random
+from urllib.parse import urlencode
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
@@ -8,20 +9,39 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.utils import timezone
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, TemplateView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth import login, update_session_auth_hash
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .forms import BookingRequestForm, CustomUserCreationForm, EmailAuthenticationForm, EmailVerificationForm
-from .models import AddOn, Address, Booking, Order, OrderItem, OrderItemAddOn, Package, User
+from .forms import (
+    BookingRequestForm,
+    CustomUserCreationForm,
+    EmailAuthenticationForm,
+    EmailVerificationForm,
+    NewsletterCampaignForm,
+    NewsletterSubscriptionForm,
+)
+from .models import (
+    AddOn,
+    Address,
+    Booking,
+    NewsletterCampaign,
+    NewsletterSubscriber,
+    Order,
+    OrderItem,
+    OrderItemAddOn,
+    Package,
+    User,
+)
 
 try:
     import stripe
@@ -81,6 +101,52 @@ def _email_verification_code_is_valid(user, code):
         return False
     expires_at = sent_at + timedelta(minutes=VERIFICATION_CODE_TTL_MINUTES)
     return timezone.now() <= expires_at
+
+
+def _get_safe_next_url(request, fallback_name="home"):
+    next_url = str(
+        request.POST.get("next")
+        or request.GET.get("next")
+        or request.META.get("HTTP_REFERER")
+        or ""
+    ).strip()
+    if next_url and url_has_allowed_host_and_scheme(next_url, {request.get_host()}, require_https=request.is_secure()):
+        return next_url
+    return reverse(fallback_name)
+
+
+def _send_newsletter_campaign(campaign, subscribers):
+    sent_count = 0
+    for subscriber in subscribers:
+        send_mail(
+            campaign.subject,
+            campaign.body,
+            settings.DEFAULT_FROM_EMAIL,
+            [subscriber.email],
+            fail_silently=False,
+        )
+        sent_count += 1
+    campaign.recipient_count = sent_count
+    campaign.sent_at = timezone.now()
+    campaign.save(update_fields=["recipient_count", "sent_at"])
+    return sent_count
+
+
+def _send_newsletter_welcome_email(subscriber):
+    subject = "Welcome to the BettyVerse newsletter"
+    message = (
+        f"Hello,\n\n"
+        f"Welcome to the BettyVerse newsletter.\n\n"
+        f"You are now subscribed with: {subscriber.email}\n\n"
+        "You will receive updates about offers, styling trends, and new package launches."
+    )
+    send_mail(
+        subject,
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [subscriber.email],
+        fail_silently=False,
+    )
 
 
 def _resolve_package_image_url(package):
@@ -575,6 +641,127 @@ class CustomLoginView(LoginView):
             return redirect(f"{reverse('verify_email')}?email={pending_user.email}")
         messages.error(self.request, "Invalid email or password.")
         return super().form_invalid(form)
+
+
+class StaffRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    login_url = reverse_lazy("login")
+
+    def test_func(self):
+        return bool(self.request.user.is_staff)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, "You do not have permission to access that page.")
+            return redirect("home")
+        return super().handle_no_permission()
+
+
+class NewsletterSubscribeView(View):
+    def post(self, request, *args, **kwargs):
+        form = NewsletterSubscriptionForm(request.POST)
+        redirect_target = _get_safe_next_url(request)
+
+        if not form.is_valid():
+            messages.error(request, "Please enter a valid email address for the newsletter.")
+            return redirect(redirect_target)
+
+        email = form.cleaned_data["email"]
+        subscriber, created = NewsletterSubscriber.objects.get_or_create(
+            email=email,
+            defaults={
+                "user": request.user if request.user.is_authenticated else None,
+                "is_active": True,
+            },
+        )
+
+        updates = []
+        if not created and not subscriber.is_active:
+            subscriber.is_active = True
+            updates.append("is_active")
+        if request.user.is_authenticated and subscriber.user_id is None:
+            subscriber.user = request.user
+            updates.append("user")
+        if updates:
+            subscriber.save(update_fields=updates)
+
+        status = "already-subscribed"
+        if created or updates:
+            try:
+                _send_newsletter_welcome_email(subscriber)
+            except Exception:
+                messages.error(request, "You were subscribed, but we could not send the welcome email right now.")
+            status = "subscribed"
+
+        query = urlencode(
+            {
+                "email": subscriber.email,
+                "status": status,
+                "return_to": redirect_target,
+            }
+        )
+        return redirect(f"{reverse('newsletter_subscribe_success')}?{query}")
+
+
+class NewsletterSubscribeSuccessView(TemplateView):
+    template_name = "newsletter/success.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        email = str(self.request.GET.get("email") or "").strip().lower()
+        status = str(self.request.GET.get("status") or "subscribed").strip().lower()
+        return_to = _get_safe_next_url(self.request, fallback_name="home")
+        context["subscriber_email"] = email
+        context["subscription_status"] = status
+        context["return_to"] = return_to
+        return context
+
+
+class NewsletterAdminView(StaffRequiredMixin, TemplateView):
+    template_name = "admin-panel/newsletters.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["subscribers"] = NewsletterSubscriber.objects.order_by("-created_at")
+        context["campaigns"] = NewsletterCampaign.objects.select_related("sent_by").order_by("-created_at")[:20]
+        context["form"] = kwargs.get("form") or NewsletterCampaignForm()
+        context["active_subscriber_count"] = NewsletterSubscriber.objects.filter(is_active=True).count()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        form = NewsletterCampaignForm(request.POST)
+        subscribers = list(NewsletterSubscriber.objects.filter(is_active=True).order_by("email"))
+
+        if not subscribers:
+            messages.error(request, "There are no active newsletter subscribers to send to yet.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        if not form.is_valid():
+            messages.error(request, "Please complete the newsletter subject and message.")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        campaign = form.save(commit=False)
+        campaign.sent_by = request.user
+        campaign.save()
+
+        try:
+            sent_count = _send_newsletter_campaign(campaign, subscribers)
+        except Exception as exc:
+            campaign.delete()
+            messages.error(request, f"Unable to send newsletter emails right now: {exc}")
+            return self.render_to_response(self.get_context_data(form=form))
+
+        messages.success(request, f"Newsletter sent successfully to {sent_count} subscriber(s).")
+        return redirect("newsletter_admin")
+
+
+class NewsletterSubscriberToggleView(StaffRequiredMixin, View):
+    def post(self, request, subscriber_id, *args, **kwargs):
+        subscriber = get_object_or_404(NewsletterSubscriber, id=subscriber_id)
+        subscriber.is_active = not subscriber.is_active
+        subscriber.save(update_fields=["is_active", "updated_at"])
+        state = "active" if subscriber.is_active else "inactive"
+        messages.success(request, f"{subscriber.email} is now marked as {state}.")
+        return redirect("newsletter_admin")
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):

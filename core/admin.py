@@ -4,6 +4,8 @@ from .models import (
     AddOn,
     Address,
     Booking,
+    NewsletterCampaign,
+    NewsletterSubscriber,
     Order,
     OrderItem,
     OrderItemAddOn,
@@ -32,13 +34,13 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
         (
             "BettyVerse Profile",
-            {"fields": ("phone", "preferred_contact", "birthday", "event_preferences", "notes", "tier")},
+            {"fields": ("phone", "preferred_contact", "birthday", "event_preferences", "notes", "tier", "is_email_verified")},
         ),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
         (
             "BettyVerse Profile",
-            {"fields": ("email", "phone", "preferred_contact", "birthday", "event_preferences", "notes", "tier")},
+            {"fields": ("email", "phone", "preferred_contact", "birthday", "event_preferences", "notes", "tier", "is_email_verified")},
         ),
     )
     list_display = (
@@ -107,3 +109,19 @@ class OrderItemAddOnAdmin(admin.ModelAdmin):
     list_display = ("id", "order_item", "addon", "price")
     list_filter = ("addon",)
     search_fields = ("id", "order_item__id", "addon__name", "order_item__order__id")
+
+
+@admin.register(NewsletterSubscriber)
+class NewsletterSubscriberAdmin(admin.ModelAdmin):
+    list_display = ("email", "user", "is_active", "created_at", "updated_at")
+    list_filter = ("is_active", "created_at", "updated_at")
+    search_fields = ("email", "user__username", "user__email")
+    ordering = ("-created_at",)
+
+
+@admin.register(NewsletterCampaign)
+class NewsletterCampaignAdmin(admin.ModelAdmin):
+    list_display = ("subject", "sent_by", "recipient_count", "sent_at", "created_at")
+    list_filter = ("sent_at", "created_at")
+    search_fields = ("subject", "body", "sent_by__username", "sent_by__email")
+    ordering = ("-created_at",)

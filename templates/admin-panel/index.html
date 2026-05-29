@@ -64,6 +64,7 @@
           <button class="admin-nav__item" type="button" data-admin-view-trigger="packages">Packages</button>
           <button class="admin-nav__item" type="button" data-admin-view-trigger="bookings">Bookings</button>
           <button class="admin-nav__item" type="button" data-admin-view-trigger="orders">Orders</button>
+          <a class="admin-nav__item" href="{% url 'newsletter_admin' %}">Newsletters</a>
         </nav>
         <div class="admin-sidebar__footer">
           <p>This panel is not linked from the public site.</p>
@@ -302,4 +303,3 @@
   <script src="{% static 'admin-panel/admin.js' %}"></script>
 </body>
 </html>
-
