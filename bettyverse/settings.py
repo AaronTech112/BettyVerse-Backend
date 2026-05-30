@@ -141,26 +141,12 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'home'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'core.backends.CertifiSMTPEmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_TIMEOUT = 20
 EMAIL_HOST_USER = os.environ.get('BETTYVERSE_EMAIL_HOST_USER', 'Bettyverse2026@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('BETTYVERSE_EMAIL_HOST_PASSWORD', 'emfy kbfh lkdr zznt')
 DEFAULT_FROM_EMAIL = f'BettyVerse <{EMAIL_HOST_USER}>'
 
-# Stripe settings (fill from your client's Stripe account credentials).
-STRIPE_SECRET_KEY = os.getenv(
-    "STRIPE_SECRET_KEY",
-    "sk_test_51TTp0uKlqyjCGcOJVV0qeN3gD7LEU6OxtdzvvqbeCXuOJb6SbOPfg3tQM8r75QD2Air5aQrBkFRxvkQjhsWWX3vx00yUmZm4Tx",
-).strip()
-STRIPE_PUBLISHABLE_KEY = os.getenv(
-    "STRIPE_PUBLISHABLE_KEY",
-    "pk_test_51TTp0uKlqyjCGcOJPRdJZw1MU6c6jwjXpNETjpTgwKzj7UOfAJEHrK8JuDalY3sL230TuPRfsHaLpABtYQkdy1XV00GADjLvwF",
-).strip()
-STRIPE_RESTRICTED_KEY = os.getenv(
-    "STRIPE_RESTRICTED_KEY",
-    "rk_test_51TTp0uKlqyjCGcOJYecHOww3dt6lw39aOoHeJBf9KWKqnP16z7TDDGEynNkNjM0PZ9nR3qsrRm7ATsYgEvfnbmul00oYC2RL6L",
-).strip()
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
-STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp").strip().lower() or "gbp"

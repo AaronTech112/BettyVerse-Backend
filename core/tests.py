@@ -1,6 +1,11 @@
+import json
+
+from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 
 from .models import Booking, NewsletterCampaign, NewsletterSubscriber, User
@@ -199,3 +204,74 @@ class BookingFlowTests(TestCase):
 
         self.assertRedirects(response, reverse("dashboard"))
         self.assertTrue(Booking.objects.filter(user=user, event_type="Birthday").exists())
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class PasswordResetFlowTests(TestCase):
+    def test_password_reset_request_sends_email(self):
+        user = User.objects.create_user(
+            username="resetuser",
+            email="reset@example.com",
+            password="OldPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+
+        response = self.client.post(reverse("password_reset"), {"email": user.email})
+
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("BettyVerse password reset", mail.outbox[0].subject)
+        self.assertIn(user.email, mail.outbox[0].body)
+
+    def test_password_reset_confirm_updates_password(self):
+        user = User.objects.create_user(
+            username="confirmuser",
+            email="confirm@example.com",
+            password="OldPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        confirm_url = reverse("password_reset_confirm", kwargs={"uidb64": uid, "token": token})
+
+        response = self.client.get(confirm_url)
+        self.assertEqual(response.status_code, 302)
+
+        response = self.client.post(
+            response.url,
+            {
+                "new_password1": "NewSecurePass123!",
+                "new_password2": "NewSecurePass123!",
+            },
+        )
+
+        user.refresh_from_db()
+        self.assertRedirects(response, reverse("password_reset_complete"))
+        self.assertTrue(user.check_password("NewSecurePass123!"))
+
+    def test_dashboard_password_change_endpoint_updates_password(self):
+        user = User.objects.create_user(
+            username="dashreset",
+            email="dashreset@example.com",
+            password="OldPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("dashboard_password_change"),
+            data=json.dumps(
+                {
+                    "currentPassword": "OldPass123!",
+                    "newPassword": "NewSecurePass123!",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        user.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(user.check_password("NewSecurePass123!"))

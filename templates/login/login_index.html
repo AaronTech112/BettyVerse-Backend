@@ -17,7 +17,7 @@
 <body class="auth-page">
     <div class="auth-shell">
         <div class="auth-brand-panel">
-            <a class="auth-home-link" href="../index.html">Back to Website</a>
+            <a class="auth-home-link" href="{% url 'home' %}">Back to Website</a>
             <div class="auth-brand-mark"><img src="{% static 'images/logo.png' %}" alt="BettyVerse logo"></div>
             <span class="auth-kicker"><i class='bx bx-shield-quarter'></i>BettyVerse Access</span>
             <h1>Welcome back.</h1>
@@ -51,7 +51,7 @@
                 </div>
                 <div class="auth-row">
                     <label class="check-label"><input type="checkbox"> Remember me</label>
-                    <a href="#">Forgot password?</a>
+                    <a href="{% url 'password_reset' %}">Forgot password?</a>
                 </div>
                 <button type="submit" class="btn">Log In</button>
                 <p class="switch-text">New here? <a href="{% url 'signup' %}">Create account</a></p>

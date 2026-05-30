@@ -1,5 +1,13 @@
+import ssl
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
+from django.core.mail.backends.smtp import EmailBackend as SMTPEmailBackend
+
+try:
+    import certifi
+except Exception:  # pragma: no cover - optional dependency fallback
+    certifi = None
 
 
 class EmailOrUsernameModelBackend(ModelBackend):
@@ -16,3 +24,11 @@ class EmailOrUsernameModelBackend(ModelBackend):
         if user and user.check_password(password) and self.user_can_authenticate(user):
             return user
         return None
+
+
+class CertifiSMTPEmailBackend(SMTPEmailBackend):
+    @property
+    def ssl_context(self):
+        if certifi is not None:
+            return ssl.create_default_context(cafile=certifi.where())
+        return ssl.create_default_context()
