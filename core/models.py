@@ -55,7 +55,7 @@ class Package(models.Model):
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     summary = models.TextField()
     image = models.ImageField(upload_to='packages/', blank=True, null=True)
-    image_url = models.URLField(blank=True, null=True) # for existing static images
+    image_url = models.CharField(max_length=500, blank=True, null=True) # for existing static images or direct URLs
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='published')
     tags = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -68,7 +68,7 @@ class Package(models.Model):
 class PackageImage(models.Model):
     package = models.ForeignKey(Package, on_delete=models.CASCADE, related_name='gallery_images')
     image = models.ImageField(upload_to='packages/gallery/', blank=True, null=True)
-    image_url = models.URLField(blank=True, null=True)
+    image_url = models.CharField(max_length=500, blank=True, null=True)
     alt_text = models.CharField(max_length=255, blank=True)
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

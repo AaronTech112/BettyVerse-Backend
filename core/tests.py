@@ -1,7 +1,10 @@
 import json
+import shutil
+import tempfile
 
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils.encoding import force_bytes
@@ -221,6 +224,53 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         package_data = json.loads(response.context["package_json"])
         self.assertEqual(package_data["images"], ["/static/images/Nemo_inspired.jpg"])
+
+    def test_relative_static_image_paths_are_valid_for_package_models(self):
+        package = Package.objects.create(
+            name="Static Image Package",
+            category="Birthday",
+            base_price="120.00",
+            summary="Uses a static frontend image path.",
+            image_url="images/static-demo.jpg",
+            status="published",
+        )
+        package.full_clean()
+
+        gallery_image = PackageImage(
+            package=package,
+            image_url="images/static-detail.jpg",
+            alt_text="Static gallery image",
+            sort_order=1,
+        )
+        gallery_image.full_clean()
+
+    def test_uploaded_gallery_image_is_added_without_replacing_primary_image(self):
+        media_root = tempfile.mkdtemp()
+        self.addCleanup(lambda: shutil.rmtree(media_root, ignore_errors=True))
+
+        with override_settings(MEDIA_ROOT=media_root):
+            package = Package.objects.create(
+                name="Uploaded Gallery Package",
+                category="Birthday",
+                base_price="150.00",
+                summary="Primary static image plus uploaded gallery image.",
+                image_url="images/Nemo_inspired.jpg",
+                status="published",
+            )
+            PackageImage.objects.create(
+                package=package,
+                image=SimpleUploadedFile("extra.jpg", b"gallery-image-bytes", content_type="image/jpeg"),
+                alt_text="Uploaded gallery image",
+                sort_order=1,
+            )
+
+            response = self.client.get(reverse("package_detail"), {"id": "uploaded-gallery-package"})
+
+        self.assertEqual(response.status_code, 200)
+        package_data = json.loads(response.context["package_json"])
+        self.assertEqual(package_data["images"][0], "/static/images/Nemo_inspired.jpg")
+        self.assertEqual(len(package_data["images"]), 2)
+        self.assertTrue(package_data["images"][1].endswith("/media/packages/gallery/extra.jpg"))
 
 
 class BookingFlowTests(TestCase):
