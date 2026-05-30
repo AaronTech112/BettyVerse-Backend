@@ -10,6 +10,7 @@ from .models import (
     OrderItem,
     OrderItemAddOn,
     Package,
+    PackageImage,
     User,
 )
 
@@ -17,6 +18,12 @@ from .models import (
 class AddOnInline(admin.TabularInline):
     model = AddOn
     extra = 0
+
+
+class PackageImageInline(admin.TabularInline):
+    model = PackageImage
+    extra = 1
+    fields = ("sort_order", "image", "image_url", "alt_text")
 
 
 class OrderItemAddOnInline(admin.TabularInline):
@@ -63,7 +70,15 @@ class PackageAdmin(admin.ModelAdmin):
     list_display = ("name", "category", "base_price", "status", "created_at", "updated_at")
     list_filter = ("status", "category", "created_at", "updated_at")
     search_fields = ("name", "category", "tags", "summary")
-    inlines = (AddOnInline,)
+    inlines = (PackageImageInline, AddOnInline)
+
+
+@admin.register(PackageImage)
+class PackageImageAdmin(admin.ModelAdmin):
+    list_display = ("package", "sort_order", "alt_text", "created_at")
+    list_filter = ("package", "created_at")
+    search_fields = ("package__name", "alt_text", "image_url")
+    ordering = ("package", "sort_order", "id")
 
 
 @admin.register(AddOn)

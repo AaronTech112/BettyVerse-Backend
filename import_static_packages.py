@@ -8,7 +8,7 @@ import django  # noqa: E402
 
 django.setup()
 
-from core.models import AddOn, Package  # noqa: E402
+from core.models import AddOn, Package, PackageImage  # noqa: E402
 
 
 def parse_decimal(value: str) -> Decimal:
@@ -63,6 +63,10 @@ def main() -> None:
 
         summary = (article_attrs.get("package-summary") or "").strip()
         image_url = (article_attrs.get("package-image") or "").strip()
+        gallery_image_urls = [
+            (article_attrs.get("package-image2") or "").strip(),
+            (article_attrs.get("package-image3") or "").strip(),
+        ]
         tags = (container_attrs.get("tags") or "").strip()
         base_price = parse_decimal(
             (article_attrs.get("package-base-price") or article_attrs.get("package-price") or "0").strip()
@@ -88,6 +92,15 @@ def main() -> None:
             package.tags = tags
             package.save(update_fields=["base_price", "summary", "image_url", "status", "tags", "updated_at"])
             updated += 1
+
+        package.gallery_images.all().delete()
+        for index, gallery_image_url in enumerate([url for url in gallery_image_urls if url], start=1):
+            PackageImage.objects.create(
+                package=package,
+                image_url=gallery_image_url,
+                alt_text=f"{package.name} gallery image {index}",
+                sort_order=index,
+            )
 
         package.addons.all().delete()
         for addon_input in addon_input_re.findall(block):

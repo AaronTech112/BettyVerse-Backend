@@ -9,7 +9,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.utils import timezone
@@ -157,6 +157,22 @@ def _resolve_package_image_url(package):
             return package.image_url
         return "/static/" + package.image_url.lstrip("/")
     return ""
+
+
+def _get_package_gallery_image_urls(package):
+    images = []
+    seen = set()
+
+    def add_image(url):
+        if not url or url in seen:
+            return
+        seen.add(url)
+        images.append(url)
+
+    add_image(_resolve_package_image_url(package))
+    for gallery_image in package.gallery_images.all():
+        add_image(_resolve_package_image_url(gallery_image))
+    return images
 
 
 def _get_or_create_cart_order(user):
@@ -344,12 +360,6 @@ class AboutView(TemplateView):
 class ServicesView(TemplateView):
     template_name = 'services.html'
 
-
-
-
-import json
-from django.utils.text import slugify
-
 class PackageDetailView(TemplateView):
     template_name = 'package-detail.html'
 
@@ -359,20 +369,24 @@ class PackageDetailView(TemplateView):
         package = None
         
         if package_id_or_slug:
-            for p in Package.objects.filter(status="published").prefetch_related("addons"):
+            for p in Package.objects.filter(status="published").prefetch_related("addons", "gallery_images"):
                 slug = p.name.lower().replace(" ", "-")
                 if slugify(p.name) == package_id_or_slug or slug == package_id_or_slug or str(p.id) == package_id_or_slug:
                     package = p
                     break
         
         if package:
+            package_slug = slugify(package.name)
+            gallery_images = _get_package_gallery_image_urls(package)
             package_data = {
-                "id": package_id_or_slug,
+                "id": package_slug,
+                "packageId": package.id,
+                "slug": package_slug,
                 "name": package.name,
                 "category": package.category,
                 "summary": package.summary,
-                "image": _resolve_package_image_url(package),
-                "images": [_resolve_package_image_url(package)],
+                "image": gallery_images[0] if gallery_images else "",
+                "images": gallery_images,
                 "basePrice": float(package.base_price),
                 "price": float(package.base_price),
                 "highlights": [],

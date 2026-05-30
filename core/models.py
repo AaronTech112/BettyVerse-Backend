@@ -64,6 +64,23 @@ class Package(models.Model):
     def __str__(self):
         return self.name
 
+
+class PackageImage(models.Model):
+    package = models.ForeignKey(Package, on_delete=models.CASCADE, related_name='gallery_images')
+    image = models.ImageField(upload_to='packages/gallery/', blank=True, null=True)
+    image_url = models.URLField(blank=True, null=True)
+    alt_text = models.CharField(max_length=255, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('sort_order', 'id')
+
+    def __str__(self):
+        label = self.alt_text or self.package.name
+        return f"{self.package.name} image: {label}"
+
+
 class AddOn(models.Model):
     package = models.ForeignKey(Package, on_delete=models.CASCADE, related_name='addons')
     name = models.CharField(max_length=255)

@@ -8,7 +8,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 
-from .models import Booking, NewsletterCampaign, NewsletterSubscriber, User
+from .models import Booking, NewsletterCampaign, NewsletterSubscriber, Package, PackageImage, User
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -167,6 +167,60 @@ class NewsletterFlowTests(TestCase):
         self.assertEqual(campaign.recipient_count, 2)
         self.assertEqual(len(mail.outbox), 2)
         self.assertEqual(sorted(message.to[0] for message in mail.outbox), ["active1@example.com", "active2@example.com"])
+
+
+class PackageGalleryTests(TestCase):
+    def test_package_detail_exposes_gallery_images_in_order(self):
+        package = Package.objects.create(
+            name="Betty And Confetti - Neon Luxe Arch",
+            category="Birthday",
+            base_price="200.00",
+            summary="Luxury balloon arch with neon styling.",
+            image_url="images/bandc25s.jpg",
+            status="published",
+        )
+        PackageImage.objects.create(
+            package=package,
+            image_url="images/added_bday.jpeg",
+            alt_text="Alternate setup angle",
+            sort_order=1,
+        )
+        PackageImage.objects.create(
+            package=package,
+            image_url="images/bandc25.jpeg",
+            alt_text="Close-up detail shot",
+            sort_order=2,
+        )
+
+        response = self.client.get(reverse("package_detail"), {"id": "betty-and-confetti-neon-luxe-arch"})
+
+        self.assertEqual(response.status_code, 200)
+        package_data = json.loads(response.context["package_json"])
+        self.assertEqual(package_data["image"], "/static/images/bandc25s.jpg")
+        self.assertEqual(
+            package_data["images"],
+            [
+                "/static/images/bandc25s.jpg",
+                "/static/images/added_bday.jpeg",
+                "/static/images/bandc25.jpeg",
+            ],
+        )
+
+    def test_package_detail_falls_back_to_primary_image_when_no_gallery_exists(self):
+        package = Package.objects.create(
+            name="Finding Nemo Inspired Package",
+            category="Birthday",
+            base_price="110.00",
+            summary="An underwater setup.",
+            image_url="images/Nemo_inspired.jpg",
+            status="published",
+        )
+
+        response = self.client.get(reverse("package_detail"), {"id": str(package.id)})
+
+        self.assertEqual(response.status_code, 200)
+        package_data = json.loads(response.context["package_json"])
+        self.assertEqual(package_data["images"], ["/static/images/Nemo_inspired.jpg"])
 
 
 class BookingFlowTests(TestCase):
