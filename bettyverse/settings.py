@@ -152,6 +152,7 @@ EMAIL_TIMEOUT = 20
 EMAIL_HOST_USER = os.environ.get('BETTYVERSE_EMAIL_HOST_USER', 'Bettyverse2026@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('BETTYVERSE_EMAIL_HOST_PASSWORD', 'emfy kbfh lkdr zznt')
 DEFAULT_FROM_EMAIL = f'BettyVerse <{EMAIL_HOST_USER}>'
+PASSWORD_RESET_BASE_URL = os.getenv("BETTYVERSE_PUBLIC_BASE_URL", "").strip().rstrip("/")
 
 # Stripe settings (fill from your client's Stripe account credentials).
 STRIPE_SECRET_KEY = os.getenv(

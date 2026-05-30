@@ -4,11 +4,11 @@ from django.contrib.auth.views import (
     PasswordResetCompleteView,
     PasswordResetConfirmView,
     PasswordResetDoneView,
-    PasswordResetView,
 )
 from .views import (
     AboutView,
     AdminPanelView,
+    BettyVersePasswordResetView,
     BlogView,
     CartAddItemView,
     CartClearView,
@@ -62,7 +62,7 @@ urlpatterns = [
     path('login/', CustomLoginView.as_view(), name='login'),
     path(
         'password-reset/',
-        PasswordResetView.as_view(
+        BettyVersePasswordResetView.as_view(
             template_name='login/password_reset.html',
             email_template_name='login/password_reset_email.txt',
             subject_template_name='login/password_reset_subject.txt',

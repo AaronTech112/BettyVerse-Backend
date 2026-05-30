@@ -1,7 +1,7 @@
 import json
 import importlib
 import random
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
@@ -18,12 +18,13 @@ from django.views import View
 from django.views.generic import CreateView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth import login, update_session_auth_hash
-from django.contrib.auth.views import LoginView
+from django.contrib.auth.views import LoginView, PasswordResetView
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .forms import (
     BookingRequestForm,
+    BettyVersePasswordResetForm,
     CustomUserCreationForm,
     EmailAuthenticationForm,
     EmailVerificationForm,
@@ -655,6 +656,35 @@ class CustomLoginView(LoginView):
             return redirect(f"{reverse('verify_email')}?email={pending_user.email}")
         messages.error(self.request, "Invalid email or password.")
         return super().form_invalid(form)
+
+
+class BettyVersePasswordResetView(PasswordResetView):
+    form_class = BettyVersePasswordResetForm
+    html_email_template_name = "login/password_reset_email.html"
+
+    def form_valid(self, form):
+        public_base_url = str(getattr(settings, "PASSWORD_RESET_BASE_URL", "") or "").strip()
+        domain_override = None
+        use_https = self.request.is_secure()
+
+        if public_base_url:
+            parsed = urlsplit(public_base_url)
+            if parsed.netloc:
+                domain_override = parsed.netloc
+                use_https = parsed.scheme == "https"
+
+        form.save(
+            use_https=use_https,
+            token_generator=self.token_generator,
+            from_email=settings.EMAIL_HOST_USER,
+            email_template_name=self.email_template_name,
+            subject_template_name=self.subject_template_name,
+            request=self.request,
+            html_email_template_name=self.html_email_template_name,
+            extra_email_context=self.extra_email_context,
+            domain_override=domain_override,
+        )
+        return redirect(self.get_success_url())
 
 
 class StaffRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):

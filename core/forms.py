@@ -1,7 +1,10 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import PasswordResetForm
 from django.contrib.auth.forms import UserCreationForm
-from .models import Booking, NewsletterCampaign, NewsletterSubscriber, User
+from django.core.mail import EmailMultiAlternatives
+from django.template import loader
+from .models import Booking, NewsletterCampaign, User
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -101,6 +104,37 @@ class NewsletterCampaignForm(forms.ModelForm):
             "subject": forms.TextInput(attrs={"placeholder": "Newsletter subject"}),
             "body": forms.Textarea(attrs={"rows": 10, "placeholder": "Write your newsletter email here"}),
         }
+
+
+class BettyVersePasswordResetForm(PasswordResetForm):
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()
+
+    def send_mail(
+        self,
+        subject_template_name,
+        email_template_name,
+        context,
+        from_email,
+        to_email,
+        html_email_template_name=None,
+    ):
+        subject = loader.render_to_string(subject_template_name, context)
+        subject = "".join(subject.splitlines())
+        body = loader.render_to_string(email_template_name, context)
+        from_email = from_email or context.get("from_email") or to_email
+
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=[to_email],
+            reply_to=[from_email],
+        )
+        if html_email_template_name:
+            html_body = loader.render_to_string(html_email_template_name, context)
+            message.attach_alternative(html_body, "text/html")
+        message.send()
 
 
 class BookingRequestForm(forms.ModelForm):
