@@ -176,6 +176,29 @@ def _get_package_gallery_image_urls(package):
     return images
 
 
+def _serialize_package_bootstrap(package):
+    package_slug = slugify(package.name)
+    gallery_images = _get_package_gallery_image_urls(package)
+    return {
+        "id": package_slug,
+        "packageId": package.id,
+        "slug": package_slug,
+        "name": package.name,
+        "category": package.category,
+        "tags": package.tags or "",
+        "summary": package.summary,
+        "image": gallery_images[0] if gallery_images else "",
+        "images": gallery_images,
+        "basePrice": float(package.base_price),
+        "price": float(package.base_price),
+        "addons": [
+            {"id": addon.id, "name": addon.name, "price": float(addon.price)}
+            for addon in package.addons.all()
+        ],
+        "selectedAddons": [],
+    }
+
+
 def _get_or_create_cart_order(user):
     order = (
         Order.objects.filter(user=user, status="pending", booking__isnull=True)
@@ -353,6 +376,19 @@ def _serialize_dashboard_bookings(user):
 class HomeView(TemplateView):
     template_name = 'index.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        packages_qs = (
+            Package.objects.filter(status="published")
+            .prefetch_related("addons", "gallery_images")
+            .order_by("id")
+        )
+        context["packages_bootstrap"] = [
+            _serialize_package_bootstrap(package)
+            for package in packages_qs
+        ]
+        return context
+
 
 class AboutView(TemplateView):
     template_name = 'about.html'
@@ -377,26 +413,8 @@ class PackageDetailView(TemplateView):
                     break
         
         if package:
-            package_slug = slugify(package.name)
-            gallery_images = _get_package_gallery_image_urls(package)
-            package_data = {
-                "id": package_slug,
-                "packageId": package.id,
-                "slug": package_slug,
-                "name": package.name,
-                "category": package.category,
-                "summary": package.summary,
-                "image": gallery_images[0] if gallery_images else "",
-                "images": gallery_images,
-                "basePrice": float(package.base_price),
-                "price": float(package.base_price),
-                "highlights": [],
-                "addons": [
-                    {"name": addon.name, "price": float(addon.price)}
-                    for addon in package.addons.all()
-                ],
-                "selectedAddons": []
-            }
+            package_data = _serialize_package_bootstrap(package)
+            package_data["highlights"] = []
             context['package_json'] = json.dumps(package_data)
         
         return context
@@ -408,34 +426,15 @@ class PackagesView(TemplateView):
         context = super().get_context_data(**kwargs)
         selected_filter = (self.request.GET.get("filter") or "all").strip().lower()
 
-        packages_qs = Package.objects.filter(status="published").prefetch_related("addons").order_by("-created_at")
-        if selected_filter and selected_filter != "all":
-            packages_qs = packages_qs.filter(
-                Q(category__icontains=selected_filter)
-                | Q(tags__icontains=selected_filter)
-                | Q(name__icontains=selected_filter)
-            )
-
-        bootstrap_rows = []
-        for package in packages_qs:
-            bootstrap_rows.append(
-                {
-                    "id": package.id,
-                    "slug": package.name.lower().replace(" ", "-"),
-                    "name": package.name,
-                    "category": package.category,
-                    "tags": package.tags or "",
-                    "summary": package.summary,
-                    "image": _resolve_package_image_url(package),
-                    "base_price": float(package.base_price),
-                    "addons": [
-                        {"id": addon.id, "name": addon.name, "price": float(addon.price)}
-                        for addon in package.addons.all()
-                    ],
-                }
-            )
-
-        context["packages_bootstrap"] = bootstrap_rows
+        packages_qs = (
+            Package.objects.filter(status="published")
+            .prefetch_related("addons", "gallery_images")
+            .order_by("id")
+        )
+        context["packages_bootstrap"] = [
+            _serialize_package_bootstrap(package)
+            for package in packages_qs
+        ]
         context["active_filter"] = selected_filter
         return context
 

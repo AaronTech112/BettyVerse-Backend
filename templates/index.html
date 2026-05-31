@@ -689,9 +689,10 @@
             </div>
          </div>
       </footer>
+      {{ packages_bootstrap|json_script:"packages-bootstrap-data" }}
       <script src="{% static 'js/jquery.min.js' %}"></script>
       <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-      <script src="{% static 'js/packages-inline.js' %}"></script>
+      <script src="{% static 'js/packages-inline.js' %}?v=3"></script>
       <script src="{% static 'js/plugin.js' %}"></script>
       <script src="{% static 'js/jquery.mCustomScrollbar.concat.min.js' %}"></script>
       <script src="{% static 'js/cart.js' %}"></script>

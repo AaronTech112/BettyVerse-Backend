@@ -272,6 +272,55 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(len(package_data["images"]), 2)
         self.assertTrue(package_data["images"][1].endswith("/media/packages/gallery/extra.jpg"))
 
+    def test_packages_view_bootstrap_uses_backend_slugs_and_gallery_images(self):
+        package = Package.objects.create(
+            name="Mickey Mouse Themed",
+            category="Birthday",
+            base_price="170.00",
+            summary="Backend-driven package card data.",
+            image_url="images/Mickey_Themed.jpeg",
+            status="published",
+            tags="kids-birthday",
+        )
+        PackageImage.objects.create(
+            package=package,
+            image_url="images/Mickey_detail.jpeg",
+            alt_text="Detail shot",
+            sort_order=1,
+        )
+
+        response = self.client.get(reverse("packages"))
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["slug"], "mickey-mouse-themed")
+        self.assertEqual(bootstrap[0]["id"], "mickey-mouse-themed")
+        self.assertEqual(bootstrap[0]["packageId"], package.id)
+        self.assertEqual(
+            bootstrap[0]["images"],
+            ["/static/images/Mickey_Themed.jpeg", "/static/images/Mickey_detail.jpeg"],
+        )
+
+    def test_home_view_bootstrap_is_available_for_frontend_hydration(self):
+        package = Package.objects.create(
+            name="The Luxe Boot Reveal",
+            category="Birthday",
+            base_price="180.00",
+            summary="Hydrates legacy frontend cards from backend data.",
+            image_url="images/car_boot4.jpg",
+            status="published",
+            tags="car-boot",
+        )
+
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["packageId"], package.id)
+        self.assertEqual(bootstrap[0]["slug"], "the-luxe-boot-reveal")
+
 
 class BookingFlowTests(TestCase):
     def test_booking_submission_accepts_acknowledgement_checkboxes(self):
