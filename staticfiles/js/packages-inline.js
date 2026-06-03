@@ -1,4 +1,5 @@
          document.addEventListener('DOMContentLoaded', function () {
+            var CATALOG_KEY = 'bettyverse-package-catalog';
             var parentPillMap = {
                'kids-birthday': 'birthday',
                'custom-request': 'birthday',
@@ -80,6 +81,264 @@
                   ]
                }
             };
+            function parseJsonScript(id) {
+               var node = document.getElementById(id);
+               if (!node || !node.textContent) {
+                  return [];
+               }
+               try {
+                  return JSON.parse(node.textContent);
+               } catch (error) {
+                  return [];
+               }
+            }
+            function slugifyText(value) {
+               return (value || '')
+                  .toString()
+                  .trim()
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '-')
+                  .replace(/^-+|-+$/g, '');
+            }
+            function tokenizeIdentifier(value) {
+               var ignore = {
+                  '': true,
+                  'and': true,
+                  'the': true,
+                  'a': true,
+                  'an': true,
+                  'dummy': true,
+                  'package': true,
+                  'packages': true,
+                  'decor': true,
+                  'decorations': true,
+                  'decoration': true,
+                  'by': true
+               };
+               return slugifyText(value).split('-').filter(function (token) {
+                  return token && !ignore[token];
+               });
+            }
+            function normalizePackageCategory(value) {
+               var normalized = normalizeFilter(value || 'all');
+               if (normalized === 'occasion' || normalized === 'proposal' || normalized === 'surprise') {
+                  return 'surprise';
+               }
+               return normalized;
+            }
+            function normalizeBackendPackage(pkg) {
+               var images = Array.isArray(pkg && pkg.images) ? pkg.images.filter(Boolean) : [];
+               var primaryImage = (pkg && pkg.image) || images[0] || '';
+               if (!images.length && primaryImage) {
+                  images = [primaryImage];
+               }
+               return {
+                  id: String((pkg && (pkg.id || pkg.slug)) || '').trim(),
+                  packageId: Number((pkg && pkg.packageId) || 0),
+                  slug: String((pkg && (pkg.slug || pkg.id)) || '').trim(),
+                  name: String((pkg && pkg.name) || '').trim(),
+                  category: String((pkg && pkg.category) || '').trim(),
+                  tags: String((pkg && pkg.tags) || '').trim(),
+                  summary: String((pkg && pkg.summary) || '').trim(),
+                  image: String(primaryImage || '').trim(),
+                  images: images,
+                  basePrice: Number((pkg && (pkg.basePrice || pkg.base_price || pkg.price)) || 0),
+                  price: Number((pkg && (pkg.price || pkg.basePrice || pkg.base_price)) || 0),
+                  addons: Array.isArray(pkg && pkg.addons) ? pkg.addons : []
+               };
+            }
+            function buildBackendPackageLookup(packages) {
+               var lookup = {
+                  packages: packages || [],
+                  bySlug: Object.create(null),
+                  byId: Object.create(null),
+                  byName: Object.create(null),
+                  byImage: Object.create(null)
+               };
+               lookup.packages.forEach(function (pkg) {
+                  if (pkg.slug) {
+                     lookup.bySlug[pkg.slug] = pkg;
+                  }
+                  if (pkg.packageId) {
+                     lookup.byId[String(pkg.packageId)] = pkg;
+                  }
+                  if (pkg.name) {
+                     lookup.byName[pkg.name.trim().toLowerCase()] = pkg;
+                  }
+                  if (pkg.image) {
+                     lookup.byImage[imageComparable(pkg.image)] = pkg;
+                  }
+               });
+               return lookup;
+            }
+            function scorePackageMatch(card, pkg) {
+               if (!card || !pkg) {
+                  return -1;
+               }
+               var legacyId = String(card.dataset.packageLegacyId || card.dataset.packageId || '').trim();
+               var legacyName = String(card.dataset.packageLegacyName || card.dataset.packageName || '').trim().toLowerCase();
+               var legacyImage = imageComparable(card.dataset.packageLegacyImage || card.dataset.packageImage || '');
+               var score = -1;
+               if (legacyId && (legacyId === pkg.slug || legacyId === String(pkg.packageId || ''))) {
+                  score = Math.max(score, 500);
+               }
+               if (legacyName && legacyName === pkg.name.trim().toLowerCase()) {
+                  score = Math.max(score, 480);
+               }
+               if (legacyImage && pkg.image && legacyImage === imageComparable(pkg.image)) {
+                  score = Math.max(score, 460);
+               }
+               var cardTokens = tokenizeIdentifier(legacyId);
+               var packageTokens = tokenizeIdentifier(pkg.slug || pkg.name);
+               if (cardTokens.length && packageTokens.length) {
+                  var overlap = cardTokens.filter(function (token) {
+                     return packageTokens.indexOf(token) !== -1;
+                  }).length;
+                  if (overlap && overlap === cardTokens.length) {
+                     score = Math.max(score, 300 + overlap);
+                  } else if (overlap > 1) {
+                     score = Math.max(score, 220 + overlap);
+                  }
+               }
+               return score;
+            }
+            function findBackendPackageForCard(card, lookup) {
+               if (!card || !lookup || !lookup.packages.length) {
+                  return null;
+               }
+               var backendId = String(card.dataset.packageBackendId || '').trim();
+               var legacyId = String(card.dataset.packageLegacyId || card.dataset.packageId || '').trim();
+               var legacyName = String(card.dataset.packageLegacyName || card.dataset.packageName || '').trim().toLowerCase();
+               var legacyImage = imageComparable(card.dataset.packageLegacyImage || card.dataset.packageImage || '');
+               if (backendId && lookup.byId[backendId]) {
+                  return lookup.byId[backendId];
+               }
+               if (legacyId && lookup.bySlug[legacyId]) {
+                  return lookup.bySlug[legacyId];
+               }
+               if (legacyName && lookup.byName[legacyName]) {
+                  return lookup.byName[legacyName];
+               }
+               if (legacyImage && lookup.byImage[legacyImage]) {
+                  return lookup.byImage[legacyImage];
+               }
+               var bestMatch = null;
+               var bestScore = -1;
+               lookup.packages.forEach(function (pkg) {
+                  var score = scorePackageMatch(card, pkg);
+                  if (score > bestScore) {
+                     bestScore = score;
+                     bestMatch = pkg;
+                  }
+               });
+               return bestScore >= 222 ? bestMatch : null;
+            }
+            function buildPackageAddonOption(addon) {
+               var label = document.createElement('label');
+               label.className = 'package-addon-option';
+               var input = document.createElement('input');
+               input.className = 'package-addon-input';
+               input.type = 'checkbox';
+               input.value = String(addon.id || '');
+               input.dataset.addonId = String(addon.id || '');
+               input.dataset.addonName = addon.name || 'Add-on';
+               input.dataset.addonPrice = String(Number(addon.price || 0));
+               var copy = document.createElement('span');
+               copy.className = 'package-addon-copy';
+               var name = document.createElement('span');
+               name.className = 'package-addon-name';
+               name.textContent = addon.name || 'Add-on';
+               var price = document.createElement('span');
+               price.className = 'package-addon-price';
+               price.textContent = '+' + formatPounds(addon.price || 0);
+               copy.appendChild(name);
+               copy.appendChild(price);
+               label.appendChild(input);
+               label.appendChild(copy);
+               return label;
+            }
+            function hydratePackageAddons(card, pkg) {
+               if (!card || !pkg) {
+                  return;
+               }
+               var list = card.querySelector('.package-addon-list');
+               if (!list) {
+                  return;
+               }
+               list.innerHTML = '';
+               (pkg.addons || []).forEach(function (addon) {
+                  list.appendChild(buildPackageAddonOption(addon));
+               });
+            }
+            function hydratePackageCard(card, pkg) {
+               if (!card || !pkg) {
+                  return;
+               }
+               card.dataset.packageLegacyId = card.dataset.packageLegacyId || card.dataset.packageId || '';
+               card.dataset.packageLegacyName = card.dataset.packageLegacyName || card.dataset.packageName || '';
+               card.dataset.packageLegacyImage = card.dataset.packageLegacyImage || card.dataset.packageImage || '';
+               card.dataset.packageBackendId = String(pkg.packageId || '');
+               card.dataset.packageId = pkg.slug || card.dataset.packageId || '';
+               card.dataset.packageSlug = pkg.slug || '';
+               card.dataset.packageName = pkg.name || card.dataset.packageName || '';
+               card.dataset.packageCategory = pkg.category || card.dataset.packageCategory || '';
+               card.dataset.packageSummary = pkg.summary || '';
+               card.dataset.packageBasePrice = String(Number(pkg.basePrice || pkg.price || 0));
+               card.dataset.packagePrice = String(Number(pkg.basePrice || pkg.price || 0));
+               card.dataset.packageImage = pkg.image || '';
+               card.dataset.packageImage2 = pkg.images && pkg.images[1] ? pkg.images[1] : '';
+               card.dataset.packageImage3 = pkg.images && pkg.images[2] ? pkg.images[2] : '';
+               card.dataset.packageSlideImages = JSON.stringify(pkg.images || []);
+               var cardItem = card.closest('.package-card-item');
+               if (cardItem) {
+                  if (pkg.tags) {
+                     cardItem.dataset.tags = pkg.tags;
+                  }
+                  cardItem.dataset.category = normalizePackageCategory(pkg.category || cardItem.dataset.category || 'all');
+               }
+               var mediaImage = card.querySelector('.package-media img');
+               if (mediaImage) {
+                  mediaImage.src = pkg.image || mediaImage.src || '';
+                  mediaImage.alt = pkg.name || mediaImage.alt || 'Package image';
+               }
+               var label = card.querySelector('.package-label');
+               if (label) {
+                  label.innerHTML = label.innerHTML.replace(/([A-Za-z][A-Za-z '&-]*)$/, '');
+                  label.appendChild(document.createTextNode(pkg.category || 'Package'));
+               }
+               var title = card.querySelector('.package-card-top h3, h3');
+               if (title) {
+                  title.textContent = pkg.name || title.textContent;
+               }
+               var price = card.querySelector('.package-price');
+               if (price) {
+                  price.textContent = formatPounds(pkg.basePrice || pkg.price || 0);
+               }
+               card.querySelectorAll('.package-summary').forEach(function (node) {
+                  node.textContent = pkg.summary || '';
+               });
+               hydratePackageAddons(card, pkg);
+            }
+            function hydratePackageCardsFromBackend() {
+               var packages = parseJsonScript('packages-bootstrap-data').map(normalizeBackendPackage).filter(function (pkg) {
+                  return !!pkg.slug;
+               });
+               if (!packages.length) {
+                  return;
+               }
+               try {
+                  window.localStorage.setItem(CATALOG_KEY, JSON.stringify(packages));
+               } catch (error) {
+                  // Ignore localStorage issues and continue with in-memory hydration.
+               }
+               var lookup = buildBackendPackageLookup(packages);
+               document.querySelectorAll('.package-card').forEach(function (card) {
+                  var pkg = findBackendPackageForCard(card, lookup);
+                  if (pkg) {
+                     hydratePackageCard(card, pkg);
+                  }
+               });
+            }
             function getUrlFilter() {
                var params = new URLSearchParams(window.location.search);
                return params.get('filter') || 'all';
@@ -563,7 +822,7 @@
                if (!card) {
                   return {};
                }
-               return packageDetailFallbacks[card.dataset.packageId || ''] || {};
+               return packageDetailFallbacks[card.dataset.packageLegacyId || card.dataset.packageId || ''] || {};
             }
             function collectPackageDetailData(card) {
                var displayName = getPackageDisplayName(card);
@@ -585,6 +844,8 @@
                }
                return {
                   id: card.dataset.packageId || '',
+                  packageId: Number(card.dataset.packageBackendId || 0),
+                  slug: card.dataset.packageSlug || card.dataset.packageId || '',
                   name: displayName || card.dataset.packageName || 'Package',
                   category: card.dataset.packageCategory || '',
                   price: Number(card.dataset.packageFinalPrice || card.dataset.packagePrice || card.dataset.packageBasePrice || 0),
@@ -1307,6 +1568,7 @@
                   applyFilter(quickLink.dataset.filter);
                });
             }
+            hydratePackageCardsFromBackend();
             initPackageMediaSlider();
             initPackageDetailsToggle();
             initPackageAddonSelection();
