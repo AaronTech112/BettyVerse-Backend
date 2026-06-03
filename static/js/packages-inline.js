@@ -335,7 +335,17 @@
                document.querySelectorAll('.package-card').forEach(function (card) {
                   var pkg = findBackendPackageForCard(card, lookup);
                   if (pkg) {
+                     card.dataset.backendMatched = '1';
                      hydratePackageCard(card, pkg);
+                     return;
+                  }
+                  var cardItem = card.closest('.package-card-item');
+                  if (cardItem) {
+                     cardItem.hidden = true;
+                     cardItem.style.display = 'none';
+                  } else {
+                     card.hidden = true;
+                     card.style.display = 'none';
                   }
                });
             }

@@ -321,6 +321,25 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(bootstrap[0]["packageId"], package.id)
         self.assertEqual(bootstrap[0]["slug"], "the-luxe-boot-reveal")
 
+    def test_packages_bootstrap_does_not_include_frontend_only_orphan_cards(self):
+        Package.objects.create(
+            name="Betty And Confetti - Sweet 16 Pillar Setup",
+            category="Birthday",
+            base_price="120.00",
+            summary="A real backend package.",
+            image_url="images/bandc16.png",
+            status="published",
+        )
+
+        response = self.client.get(reverse("packages"))
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        slugs = [item["slug"] for item in bootstrap]
+        names = [item["name"] for item in bootstrap]
+        self.assertNotIn("safari-luxe-experience", slugs)
+        self.assertNotIn('The "Heartfelt Apology" Room Transformation', names)
+
 
 class BookingFlowTests(TestCase):
     def test_booking_submission_accepts_acknowledgement_checkboxes(self):
