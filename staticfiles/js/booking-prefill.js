@@ -55,10 +55,11 @@
     if (!form || !pkg || !pkg.name) {
       return;
     }
-    setField(form, "eventType", pkg.category || "Package");
-    setField(form, "occasionDetails", pkg.name);
+    setField(form, "event_type", pkg.category || "Package");
+    setField(form, "occasion_details", pkg.name);
+    setField(form, "theme", pkg.category || "");
     setField(form, "budget", formatPounds(pkg.finalPrice));
-    setField(form, "message", buildMessage(pkg), true);
+    setField(form, "special_requests", buildMessage(pkg), true);
 
     var note = document.querySelector("[data-cart-message-note]");
     if (note) {

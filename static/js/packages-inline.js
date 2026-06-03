@@ -431,8 +431,24 @@
             function normalizeImagePath(value) {
                return (value || '').toString().trim();
             }
+            function imageMatchKey(value) {
+               var normalized = normalizeImagePath(value).split('?')[0].toLowerCase();
+               if (!normalized) {
+                  return '';
+               }
+               normalized = normalized.replace(/^https?:\/\/[^/]+/i, '');
+               normalized = normalized.replace(/^\/+/, '');
+               normalized = normalized.replace(/^static\//, '');
+               normalized = normalized.replace(/^media\//, '');
+               return normalized;
+            }
             function imageComparable(value) {
-               return normalizeImagePath(value).split('?')[0].toLowerCase();
+               var normalized = imageMatchKey(value);
+               if (!normalized) {
+                  return '';
+               }
+               var parts = normalized.split('/');
+               return parts[parts.length - 1] || normalized;
             }
             function hashString(value) {
                var text = (value || '').toString();
@@ -1578,7 +1594,6 @@
                   applyFilter(quickLink.dataset.filter);
                });
             }
-            hydratePackageCardsFromBackend();
             initPackageMediaSlider();
             initPackageDetailsToggle();
             initPackageAddonSelection();

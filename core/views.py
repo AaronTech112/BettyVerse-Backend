@@ -176,6 +176,13 @@ def _get_package_gallery_image_urls(package):
     return images
 
 
+def _normalize_package_filter_category(category):
+    normalized = str(category or "").strip().lower()
+    if normalized in {"occasion", "proposal", "surprise"}:
+        return "surprise"
+    return normalized or "all"
+
+
 def _serialize_package_bootstrap(package):
     package_slug = slugify(package.name)
     gallery_images = _get_package_gallery_image_urls(package)
@@ -189,8 +196,10 @@ def _serialize_package_bootstrap(package):
         "summary": package.summary,
         "image": gallery_images[0] if gallery_images else "",
         "images": gallery_images,
+        "slideImagesJson": json.dumps(gallery_images),
         "basePrice": float(package.base_price),
         "price": float(package.base_price),
+        "filterCategory": _normalize_package_filter_category(package.category),
         "addons": [
             {"id": addon.id, "name": addon.name, "price": float(addon.price)}
             for addon in package.addons.all()
@@ -387,6 +396,7 @@ class HomeView(TemplateView):
             _serialize_package_bootstrap(package)
             for package in packages_qs
         ]
+        context["home_trending_packages"] = context["packages_bootstrap"][:10]
         return context
 
 

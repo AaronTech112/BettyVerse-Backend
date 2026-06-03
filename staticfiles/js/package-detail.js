@@ -29,16 +29,27 @@
     return params.get("id") || "";
   }
 
+  function matchesPackageIdentifier(item, id) {
+    if (!item) {
+      return false;
+    }
+    var normalizedId = String(id || "").trim();
+    if (!normalizedId) {
+      return true;
+    }
+    return String(item.id || "").trim() === normalizedId || String(item.slug || "").trim() === normalizedId;
+  }
+
   function findPackageData() {
     var selected = readJson(SELECTED_KEY, null);
     var id = getPackageId();
-    if (selected && (!id || selected.id === id)) {
+    if (selected && matchesPackageIdentifier(selected, id)) {
       return selected;
     }
     var catalog = readJson(CATALOG_KEY, []);
     if (Array.isArray(catalog)) {
       return catalog.find(function (item) {
-        return item && item.id === id;
+        return matchesPackageIdentifier(item, id);
       }) || null;
     }
     return null;
@@ -49,6 +60,8 @@
     var basePrice = Number(data.basePrice || data.price || 0);
     return {
       id: data.id || "",
+      packageId: data.packageId || "",
+      slug: data.slug || "",
       name: data.name || "Package",
       category: data.category || "Package",
       summary: data.summary || "",
@@ -350,7 +363,7 @@
   }
 
   function hydrateCartCard(card, data) {
-    card.dataset.packageId = data.id;
+    card.dataset.packageId = String(data.packageId || data.id || "");
     card.dataset.packageName = data.name;
     card.dataset.packageCategory = data.category;
     card.dataset.packageImage = data.image;

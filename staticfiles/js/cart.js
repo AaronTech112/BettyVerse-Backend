@@ -287,9 +287,10 @@
         if (!card) {
           return;
         }
-        var packageIdRaw = String(card.dataset.packageId || "").trim();
+        var packageIdRaw = String(card.dataset.packageBackendId || card.dataset.packageId || "").trim();
         var packageId = Number(packageIdRaw || 0);
         var hasNumericId = Number.isFinite(packageId) && packageId > 0;
+        var packageSlug = hasNumericId ? String(card.dataset.packageSlug || card.dataset.packageId || "").trim() : packageIdRaw;
         var packageName = String(card.dataset.packageName || "").trim();
         var packageCategory = String(card.dataset.packageCategory || "").trim();
         var packagePrice = Number(
@@ -309,7 +310,7 @@
         var addonRows = getSelectedAddonRows(card);
         var cartState = await postCart(endpoints.add, {
           package_id: hasNumericId ? packageId : null,
-          package_slug: hasNumericId ? "" : packageIdRaw,
+          package_slug: packageSlug,
           package_name: packageName,
           package_category: packageCategory,
           package_price: Number.isFinite(packagePrice) ? packagePrice : 0,

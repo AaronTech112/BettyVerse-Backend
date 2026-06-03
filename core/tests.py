@@ -340,6 +340,62 @@ class PackageGalleryTests(TestCase):
         self.assertNotIn("safari-luxe-experience", slugs)
         self.assertNotIn('The "Heartfelt Apology" Room Transformation', names)
 
+    def test_packages_view_bootstrap_supports_renamed_package_with_same_image(self):
+        package = Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Renamed package that should still match the existing frontend card image.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+
+        response = self.client.get(reverse("packages"))
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["name"], "Luxury Christmas Tree")
+        self.assertEqual(bootstrap[0]["slug"], "luxury-christmas-tree")
+        self.assertEqual(bootstrap[0]["packageId"], package.id)
+        self.assertEqual(bootstrap[0]["image"], "/static/images/festive6.jpeg")
+
+    def test_packages_page_renders_package_cards_directly_from_backend_data(self):
+        Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Rendered directly from Django.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+
+        response = self.client.get(reverse("packages"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Luxury Christmas Tree")
+        self.assertNotContains(response, "Christmas Decorations Dummy Package 1")
+        self.assertNotContains(response, "Safari Luxe Experience")
+
+    def test_home_page_trending_renders_directly_from_backend_data(self):
+        Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Rendered directly from Django on home trending.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Luxury Christmas Tree")
+        self.assertNotContains(response, "Christmas Decorations Dummy Package 1")
+
 
 class BookingFlowTests(TestCase):
     def test_booking_submission_accepts_acknowledgement_checkboxes(self):

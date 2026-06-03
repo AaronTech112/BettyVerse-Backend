@@ -335,7 +335,17 @@
                document.querySelectorAll('.package-card').forEach(function (card) {
                   var pkg = findBackendPackageForCard(card, lookup);
                   if (pkg) {
+                     card.dataset.backendMatched = '1';
                      hydratePackageCard(card, pkg);
+                     return;
+                  }
+                  var cardItem = card.closest('.package-card-item');
+                  if (cardItem) {
+                     cardItem.hidden = true;
+                     cardItem.style.display = 'none';
+                  } else {
+                     card.hidden = true;
+                     card.style.display = 'none';
                   }
                });
             }
@@ -421,8 +431,24 @@
             function normalizeImagePath(value) {
                return (value || '').toString().trim();
             }
+            function imageMatchKey(value) {
+               var normalized = normalizeImagePath(value).split('?')[0].toLowerCase();
+               if (!normalized) {
+                  return '';
+               }
+               normalized = normalized.replace(/^https?:\/\/[^/]+/i, '');
+               normalized = normalized.replace(/^\/+/, '');
+               normalized = normalized.replace(/^static\//, '');
+               normalized = normalized.replace(/^media\//, '');
+               return normalized;
+            }
             function imageComparable(value) {
-               return normalizeImagePath(value).split('?')[0].toLowerCase();
+               var normalized = imageMatchKey(value);
+               if (!normalized) {
+                  return '';
+               }
+               var parts = normalized.split('/');
+               return parts[parts.length - 1] || normalized;
             }
             function hashString(value) {
                var text = (value || '').toString();
@@ -1568,7 +1594,6 @@
                   applyFilter(quickLink.dataset.filter);
                });
             }
-            hydratePackageCardsFromBackend();
             initPackageMediaSlider();
             initPackageDetailsToggle();
             initPackageAddonSelection();
