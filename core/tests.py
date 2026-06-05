@@ -11,7 +11,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 
-from .models import Booking, NewsletterCampaign, NewsletterSubscriber, Package, PackageImage, User
+from .models import Address, Booking, NewsletterCampaign, NewsletterSubscriber, Package, PackageImage, User
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -398,6 +398,64 @@ class PackageGalleryTests(TestCase):
 
 
 class BookingFlowTests(TestCase):
+    def test_checkout_address_get_returns_empty_state_when_user_has_no_saved_address(self):
+        user = User.objects.create_user(
+            username="checkoutuser",
+            email="checkout@example.com",
+            password="StrongPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("checkout_address"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(
+            response.content,
+            {
+                "ok": True,
+                "address": {
+                    "label": "",
+                    "line1": "",
+                    "line2": "",
+                    "city": "",
+                    "postcode": "",
+                    "country": "",
+                },
+            },
+        )
+
+    def test_checkout_address_post_uses_neutral_label_when_user_leaves_it_blank(self):
+        user = User.objects.create_user(
+            username="addressuser",
+            email="address@example.com",
+            password="StrongPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse("checkout_address"),
+            data=json.dumps(
+                {
+                    "label": "",
+                    "line1": "12 Event Street",
+                    "line2": "",
+                    "city": "London",
+                    "postcode": "SW1A 1AA",
+                    "country": "United Kingdom",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Address.objects.filter(user=user, label="Delivery address", is_default=True).exists())
+        payload = json.loads(response.content)
+        self.assertEqual(payload["address"]["label"], "Delivery address")
+
     def test_booking_submission_accepts_acknowledgement_checkboxes(self):
         user = User.objects.create_user(
             username="bookinguser",

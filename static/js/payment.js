@@ -7,13 +7,17 @@
     checkoutPay: "/checkout/pay/",
     stripeSession: "/checkout/stripe/session/"
   };
-  var DEFAULT_ADDRESS = {
-    label: "Home",
-    line1: "59 Don Road",
+  var EMPTY_ADDRESS = {
+    label: "",
+    line1: "",
     line2: "",
-    city: "Dunfermline",
-    postcode: "KY11 4NH",
-    country: "Scotland, UK"
+    city: "",
+    postcode: "",
+    country: ""
+  };
+  var EMPTY_ADDRESS_STATE = {
+    label: "No address added yet",
+    lines: "Add a delivery address if needed for order coordination."
   };
   var paymentElements = {
     modal: null,
@@ -229,28 +233,38 @@
   function normalizeAddress(address) {
     if (!address || typeof address !== "object") {
       return {
-        label: DEFAULT_ADDRESS.label,
-        line1: DEFAULT_ADDRESS.line1,
-        line2: DEFAULT_ADDRESS.line2,
-        city: DEFAULT_ADDRESS.city,
-        postcode: DEFAULT_ADDRESS.postcode,
-        country: DEFAULT_ADDRESS.country
+        label: EMPTY_ADDRESS.label,
+        line1: EMPTY_ADDRESS.line1,
+        line2: EMPTY_ADDRESS.line2,
+        city: EMPTY_ADDRESS.city,
+        postcode: EMPTY_ADDRESS.postcode,
+        country: EMPTY_ADDRESS.country
       };
     }
 
     return {
-      label: String(address.label || DEFAULT_ADDRESS.label).trim() || DEFAULT_ADDRESS.label,
-      line1: String(address.line1 || DEFAULT_ADDRESS.line1).trim() || DEFAULT_ADDRESS.line1,
+      label: String(address.label || "").trim(),
+      line1: String(address.line1 || "").trim(),
       line2: String(address.line2 || "").trim(),
-      city: String(address.city || DEFAULT_ADDRESS.city).trim() || DEFAULT_ADDRESS.city,
-      postcode:
-        String(address.postcode || DEFAULT_ADDRESS.postcode).trim() || DEFAULT_ADDRESS.postcode,
-      country: String(address.country || DEFAULT_ADDRESS.country).trim() || DEFAULT_ADDRESS.country
+      city: String(address.city || "").trim(),
+      postcode: String(address.postcode || "").trim(),
+      country: String(address.country || "").trim()
     };
   }
 
+  function hasAddress(address) {
+    var normalized = normalizeAddress(address);
+    return !!(
+      normalized.line1 ||
+      normalized.line2 ||
+      normalized.city ||
+      normalized.postcode ||
+      normalized.country
+    );
+  }
+
   function readAddress() {
-    return normalizeAddress(currentAddress || DEFAULT_ADDRESS);
+    return normalizeAddress(currentAddress);
   }
 
   function loadAddressFromBackend() {
@@ -259,7 +273,7 @@
       credentials: "same-origin",
       headers: { Accept: "application/json" }
     }).then(function (payload) {
-      currentAddress = normalizeAddress(payload.address || DEFAULT_ADDRESS);
+      currentAddress = normalizeAddress(payload.address);
       return currentAddress;
     });
   }
@@ -291,17 +305,21 @@
 
   function renderAddress(address) {
     var normalized = normalizeAddress(address);
+    var label = normalized.label || EMPTY_ADDRESS_STATE.label;
+    var lines = hasAddress(normalized)
+      ? buildAddressLine(normalized)
+      : EMPTY_ADDRESS_STATE.lines;
     if (paymentElements.addressLabel) {
-      paymentElements.addressLabel.textContent = normalized.label;
+      paymentElements.addressLabel.textContent = label;
     }
     if (paymentElements.addressLines) {
-      paymentElements.addressLines.textContent = buildAddressLine(normalized);
+      paymentElements.addressLines.textContent = lines;
     }
     if (paymentElements.reviewAddressLabel) {
-      paymentElements.reviewAddressLabel.textContent = normalized.label;
+      paymentElements.reviewAddressLabel.textContent = label;
     }
     if (paymentElements.reviewAddressLines) {
-      paymentElements.reviewAddressLines.textContent = buildAddressLine(normalized);
+      paymentElements.reviewAddressLines.textContent = lines;
     }
   }
 
@@ -348,7 +366,6 @@
 
   function validateAddress(address) {
     if (
-      !String(address.label || "").trim() ||
       !String(address.line1 || "").trim() ||
       !String(address.city || "").trim() ||
       !String(address.postcode || "").trim() ||

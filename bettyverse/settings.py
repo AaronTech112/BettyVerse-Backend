@@ -154,18 +154,3 @@ EMAIL_HOST_PASSWORD = os.environ.get('BETTYVERSE_EMAIL_HOST_PASSWORD', 'emfy kbf
 DEFAULT_FROM_EMAIL = f'BettyVerse <{EMAIL_HOST_USER}>'
 PASSWORD_RESET_BASE_URL = os.getenv("BETTYVERSE_PUBLIC_BASE_URL", "").strip().rstrip("/")
 
-# Stripe settings (fill from your client's Stripe account credentials).
-STRIPE_SECRET_KEY = os.getenv(
-    "STRIPE_SECRET_KEY",
-    "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",
-).strip()
-STRIPE_PUBLISHABLE_KEY = os.getenv(
-    "STRIPE_PUBLISHABLE_KEY",
-    "pk_live_51TTovqKXAZxIFMbyNmBYPWlBoHT1MXkX3cH341ljtQ0YQSrwQ0cJCI4x4nEl3lVvALN03wYeqzr8QSLVjCjtm4NV00AahGCAzd",
-).strip()
-STRIPE_RESTRICTED_KEY = os.getenv(
-    "STRIPE_RESTRICTED_KEY",
-    "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",
-).strip()
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
-STRIPE_CURRENCY = os.getenv("STRIPE_CURRENCY", "gbp").strip().lower() or "gbp"

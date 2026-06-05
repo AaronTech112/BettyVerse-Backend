@@ -1074,7 +1074,7 @@ class CheckoutAddressView(LoginRequiredMixin, View):
                 {
                     "ok": True,
                     "address": {
-                        "label": "Home",
+                        "label": "",
                         "line1": "",
                         "line2": "",
                         "city": "",
@@ -1099,7 +1099,7 @@ class CheckoutAddressView(LoginRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         payload = _read_json_payload(request)
-        label = str(payload.get("label") or "Home").strip() or "Home"
+        label = str(payload.get("label") or "").strip() or "Delivery address"
         line1 = str(payload.get("line1") or "").strip()
         city = str(payload.get("city") or "").strip()
         postcode = str(payload.get("postcode") or "").strip()
