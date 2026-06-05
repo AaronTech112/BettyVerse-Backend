@@ -208,6 +208,39 @@ def _serialize_package_bootstrap(package):
     }
 
 
+def _package_matches_selected_filter(package_data, selected_filter):
+    normalized_filter = _normalize_package_filter_category(selected_filter)
+    if normalized_filter == "all":
+        return True
+
+    normalized_category = _normalize_package_filter_category(package_data.get("category"))
+    if normalized_category == normalized_filter:
+        return True
+
+    tags = {
+        _normalize_package_filter_category(tag)
+        for tag in str(package_data.get("tags") or "").split(",")
+        if str(tag).strip()
+    }
+    return normalized_filter in tags
+
+
+def _package_matches_search_query(package_data, search_query):
+    terms = [term for term in str(search_query or "").strip().lower().split() if term]
+    if not terms:
+        return True
+
+    haystack = " ".join(
+        [
+            str(package_data.get("name") or ""),
+            str(package_data.get("summary") or ""),
+            str(package_data.get("category") or ""),
+            str(package_data.get("tags") or ""),
+        ]
+    ).lower()
+    return all(term in haystack for term in terms)
+
+
 def _get_or_create_cart_order(user):
     order = (
         Order.objects.filter(user=user, status="pending", booking__isnull=True)
@@ -435,17 +468,26 @@ class PackagesView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         selected_filter = (self.request.GET.get("filter") or "all").strip().lower()
+        search_query = (self.request.GET.get("q") or "").strip()
 
         packages_qs = (
             Package.objects.filter(status="published")
             .prefetch_related("addons", "gallery_images")
             .order_by("id")
         )
-        context["packages_bootstrap"] = [
+        packages_bootstrap = [
             _serialize_package_bootstrap(package)
             for package in packages_qs
         ]
+        packages_bootstrap = [
+            package_data
+            for package_data in packages_bootstrap
+            if _package_matches_selected_filter(package_data, selected_filter)
+            and _package_matches_search_query(package_data, search_query)
+        ]
+        context["packages_bootstrap"] = packages_bootstrap
         context["active_filter"] = selected_filter
+        context["search_query"] = search_query
         return context
 
 

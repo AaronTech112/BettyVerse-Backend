@@ -488,19 +488,20 @@ function normalizeNavSearchText(value) {
     .trim();
 }
 
-function resolveNavSearchDestination(query) {
+function resolveNavSearchDestination(query, options) {
   var normalized = normalizeNavSearchText(query);
+  var currentFilter = normalizeNavSearchText(options && options.currentFilter);
   if (!normalized) {
     return "";
   }
 
   var keywordRoutes = [
-    { terms: ["home", "main"], url: "index.html" },
-    { terms: ["about", "story", "who we are"], url: "about.html" },
-    { terms: ["service", "services"], url: "services.html" },
-    { terms: ["blog", "article", "news"], url: "blog.html" },
-    { terms: ["book", "booking", "consultation"], url: "booking.html" },
-    { terms: ["cart", "checkout", "payment"], url: "cart.html" },
+    { terms: ["home", "main"], url: "/" },
+    { terms: ["about", "story", "who we are"], url: "/about/" },
+    { terms: ["service", "services"], url: "/services/" },
+    { terms: ["blog", "article", "news"], url: "/blog/" },
+    { terms: ["book", "booking", "consultation"], url: "/booking/" },
+    { terms: ["cart", "checkout", "payment"], url: "/cart/" },
     { terms: ["login", "sign in", "account"], url: "/login/" },
     { terms: ["dashboard", "orders"], url: "/dashboard/" }
   ];
@@ -515,7 +516,7 @@ function resolveNavSearchDestination(query) {
   for (var i = 0; i < packageFilters.length; i += 1) {
     for (var j = 0; j < packageFilters[i].terms.length; j += 1) {
       if (normalized.indexOf(packageFilters[i].terms[j]) !== -1) {
-        return "packages.html?filter=" + encodeURIComponent(packageFilters[i].filter) + "&q=" + encodeURIComponent(query);
+        return "/packages/?filter=" + encodeURIComponent(packageFilters[i].filter) + "&q=" + encodeURIComponent(query);
       }
     }
   }
@@ -528,7 +529,11 @@ function resolveNavSearchDestination(query) {
     }
   }
 
-  return "packages.html?q=" + encodeURIComponent(query);
+  if (currentFilter && currentFilter !== "all") {
+    return "/packages/?filter=" + encodeURIComponent(currentFilter) + "&q=" + encodeURIComponent(query);
+  }
+
+  return "/packages/?q=" + encodeURIComponent(query);
 }
 
 function applyPackagesTextSearch(query) {
@@ -583,15 +588,19 @@ function initGlobalNavSearch() {
     return;
   }
 
+  var isPackagesPage = window.location.pathname.toLowerCase().indexOf("/packages/") === 0;
   var urlParams = new URLSearchParams(window.location.search);
   var queryFromUrl = urlParams.get("q") || "";
+  var filterFromUrl = urlParams.get("filter") || "";
 
   function runSearch(rawQuery) {
     var query = String(rawQuery || "").trim();
     if (!query) {
       return false;
     }
-    var destination = resolveNavSearchDestination(query);
+    var destination = resolveNavSearchDestination(query, {
+      currentFilter: isPackagesPage ? filterFromUrl : ""
+    });
     if (!destination) {
       return false;
     }
@@ -627,12 +636,6 @@ function initGlobalNavSearch() {
       input.select();
     }
   };
-
-  if (window.location.pathname.toLowerCase().indexOf("packages.html") !== -1 && queryFromUrl) {
-    window.setTimeout(function () {
-      applyPackagesTextSearch(queryFromUrl);
-    }, 0);
-  }
 }
 
 
@@ -1871,4 +1874,3 @@ if (document.readyState === "loading") {
     init();
   }
 })(document);
-

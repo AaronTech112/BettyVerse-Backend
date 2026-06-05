@@ -361,6 +361,62 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(bootstrap[0]["packageId"], package.id)
         self.assertEqual(bootstrap[0]["image"], "/static/images/festive6.jpeg")
 
+    def test_packages_view_filters_results_by_search_query(self):
+        Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Christmas styling with premium ornaments.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+        Package.objects.create(
+            name="Finding Nemo Inspired Package",
+            category="Birthday",
+            base_price="110.00",
+            summary="An underwater birthday setup.",
+            image_url="images/Nemo_inspired.jpg",
+            status="published",
+            tags="kids-birthday",
+        )
+
+        response = self.client.get(reverse("packages"), {"q": "christmas"})
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(response.context["search_query"], "christmas")
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["name"], "Luxury Christmas Tree")
+
+    def test_packages_view_combines_filter_and_search_query(self):
+        Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Christmas styling with premium ornaments.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+        Package.objects.create(
+            name="Christmas Birthday Surprise",
+            category="Birthday",
+            base_price="150.00",
+            summary="Birthday setup with festive accents.",
+            image_url="images/birthday_demo.jpg",
+            status="published",
+            tags="christmas,birthday",
+        )
+
+        response = self.client.get(reverse("packages"), {"filter": "festival", "q": "christmas"})
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(response.context["active_filter"], "festival")
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["name"], "Luxury Christmas Tree")
+
     def test_packages_page_renders_package_cards_directly_from_backend_data(self):
         Package.objects.create(
             name="Luxury Christmas Tree",

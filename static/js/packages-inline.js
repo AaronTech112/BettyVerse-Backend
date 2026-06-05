@@ -353,9 +353,31 @@
                var params = new URLSearchParams(window.location.search);
                return params.get('filter') || 'all';
             }
+            function getUrlQuery() {
+               var params = new URLSearchParams(window.location.search);
+               return (params.get('q') || '').toString().trim().toLowerCase();
+            }
             function normalizeFilter(value) {
                var normalized = (value || 'all').toString().trim().toLowerCase();
                return normalized || 'all';
+            }
+            function cardMatchesSearch(card, query) {
+               var normalizedQuery = (query || '').toString().trim().toLowerCase();
+               if (!normalizedQuery) {
+                  return true;
+               }
+               var cardNode = card.querySelector('.package-card');
+               var haystack = [
+                  cardNode ? cardNode.getAttribute('data-package-name') : '',
+                  cardNode ? cardNode.getAttribute('data-package-summary') : '',
+                  cardNode ? cardNode.getAttribute('data-package-category') : '',
+                  card.dataset.category || '',
+                  card.dataset.audience || '',
+                  card.dataset.tags || ''
+               ].join(' ').toLowerCase();
+               return normalizedQuery.split(/\s+/).filter(Boolean).every(function (term) {
+                  return haystack.indexOf(term) !== -1;
+               });
             }
             function getParentCategory(filter) {
                var normalized = normalizeFilter(filter);
@@ -409,6 +431,7 @@
                var cards = document.querySelectorAll('.package-card-item');
                var visibleCount = 0;
                var normalized = normalizeFilter(filter);
+               var query = getUrlQuery();
                cards.forEach(function (card) {
                   var category = normalizeFilter(card.dataset.category);
                   var audience = (card.dataset.audience || '').split(',').map(function (value) {
@@ -417,7 +440,8 @@
                   var tags = (card.dataset.tags || '').split(',').map(function (value) {
                      return normalizeFilter(value);
                   }).filter(Boolean);
-                  var visible = normalized === 'all' || category === normalized || audience.indexOf(normalized) !== -1 || tags.indexOf(normalized) !== -1;
+                  var matchesFilter = normalized === 'all' || category === normalized || audience.indexOf(normalized) !== -1 || tags.indexOf(normalized) !== -1;
+                  var visible = matchesFilter && cardMatchesSearch(card, query);
                   card.style.display = visible ? 'block' : 'none';
                   if (visible) {
                      visibleCount += 1;
@@ -425,6 +449,9 @@
                });
                var noResults = document.querySelector('.no-results');
                if (noResults) {
+                  noResults.textContent = query
+                     ? 'No packages matched your search. Try another keyword.'
+                     : 'No packages match this selection right now. Try another category.';
                   noResults.classList.toggle('d-none', visibleCount > 0);
                }
             }
