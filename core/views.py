@@ -64,6 +64,56 @@ def _get_stripe_sdk():
     return stripe
 
 
+def _stripe_value(obj, key, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _mark_order_paid(order):
+    if not order:
+        return None
+    if order.status != "paid":
+        order.status = "paid"
+        order.save(update_fields=["status"])
+    return order
+
+
+def _sync_paid_order_from_stripe_session(user, session_id):
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        return None, ""
+
+    stripe_sdk = _get_stripe_sdk()
+    if stripe_sdk is None or not settings.STRIPE_SECRET_KEY:
+        return None, ""
+
+    stripe_sdk.api_key = settings.STRIPE_SECRET_KEY
+    try:
+        session = stripe_sdk.checkout.Session.retrieve(normalized_session_id)
+    except Exception as exc:
+        return None, str(exc)
+
+    payment_status = _stripe_value(session, "payment_status")
+    if payment_status != "paid":
+        return None, ""
+
+    metadata = _stripe_value(session, "metadata", {}) or {}
+    session_user_id = str(metadata.get("user_id") or "").strip()
+    if session_user_id and session_user_id != str(user.id):
+        return None, ""
+
+    order_id = metadata.get("order_id") or _stripe_value(session, "client_reference_id")
+    if not order_id:
+        return None, ""
+
+    order = Order.objects.filter(id=order_id, user=user).first()
+    if not order:
+        return None, ""
+
+    return _mark_order_paid(order), ""
+
+
 def _generate_email_verification_code():
     return f"{random.SystemRandom().randint(0, 999999):06d}"
 
@@ -569,8 +619,31 @@ class CartView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        payment_feedback = None
+        payment_state = str(self.request.GET.get("payment") or "").strip().lower()
+        session_id = str(self.request.GET.get("session_id") or "").strip()
+
+        if payment_state == "success" and session_id:
+            order, sync_error = _sync_paid_order_from_stripe_session(self.request.user, session_id)
+            if order:
+                payment_feedback = {
+                    "tone": "success",
+                    "message": "Payment confirmed successfully. Your order has been saved.",
+                }
+            elif sync_error:
+                payment_feedback = {
+                    "tone": "warning",
+                    "message": "Stripe payment was completed, but the site could not confirm it yet. Refresh shortly or contact support if it still does not update.",
+                }
+        elif payment_state == "cancelled":
+            payment_feedback = {
+                "tone": "warning",
+                "message": "Stripe checkout was cancelled. Your packages are still in the cart.",
+            }
+
         order = _get_or_create_cart_order(self.request.user)
         context["cart_bootstrap"] = _serialize_cart_order(order)
+        context["payment_feedback"] = payment_feedback
         return context
 
 
@@ -1311,13 +1384,11 @@ class CheckoutStripeWebhookView(View):
         obj = event_data.get("object", {}) if isinstance(event_data, dict) else getattr(event_data, "object", {})
 
         if event_type == "checkout.session.completed":
-            metadata = obj.get("metadata", {}) if isinstance(obj, dict) else {}
-            order_id = metadata.get("order_id") or (obj.get("client_reference_id") if isinstance(obj, dict) else None)
-            payment_status = obj.get("payment_status") if isinstance(obj, dict) else None
+            metadata = _stripe_value(obj, "metadata", {}) or {}
+            order_id = metadata.get("order_id") or _stripe_value(obj, "client_reference_id")
+            payment_status = _stripe_value(obj, "payment_status")
             if order_id and payment_status == "paid":
                 order = Order.objects.filter(id=order_id).first()
-                if order and order.status != "paid":
-                    order.status = "paid"
-                    order.save(update_fields=["status"])
+                _mark_order_paid(order)
 
         return HttpResponse(status=200)

@@ -118,6 +118,11 @@
             <span class="page_kicker"><i class="fa fa-shopping-cart icon-inline" aria-hidden="true"></i>Your Cart</span>
             <h1 class="page_title">Review your selected packages.</h1>
             <p class="page_intro">Your cart is saved here so you can review and book faster.</p>
+            {% if payment_feedback %}
+            <div class="alert alert-{% if payment_feedback.tone == 'success' %}success{% else %}warning{% endif %} mt-3" role="alert">
+               {{ payment_feedback.message }}
+            </div>
+            {% endif %}
          </div>
       </section>
       <section class="content_section cart_section">

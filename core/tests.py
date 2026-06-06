@@ -1,6 +1,7 @@
 import json
 import shutil
 import tempfile
+from unittest.mock import Mock, patch
 
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
@@ -11,7 +12,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 
-from .models import Address, Booking, NewsletterCampaign, NewsletterSubscriber, Package, PackageImage, User
+from .models import Address, Booking, NewsletterCampaign, NewsletterSubscriber, Order, OrderItem, Package, PackageImage, User
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -451,6 +452,55 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Luxury Christmas Tree")
         self.assertNotContains(response, "Christmas Decorations Dummy Package 1")
+
+
+class StripeCheckoutFlowTests(TestCase):
+    def test_cart_success_redirect_marks_order_paid_and_clears_active_cart(self):
+        user = User.objects.create_user(
+            username="stripeuser",
+            email="stripe@example.com",
+            password="StrongPass123!",
+            is_active=True,
+            is_email_verified=True,
+        )
+        package = Package.objects.create(
+            name="Luxury Christmas Tree",
+            category="Festival",
+            base_price="180.00",
+            summary="Stripe checkout package.",
+            image_url="images/festive6.jpeg",
+            status="published",
+            tags="christmas",
+        )
+        order = Order.objects.create(user=user, total_price="180.00", status="pending")
+        OrderItem.objects.create(order=order, package=package, price="180.00", quantity=1)
+        self.client.force_login(user)
+
+        stripe_sdk = Mock()
+        stripe_sdk.checkout.Session.retrieve.return_value = {
+            "payment_status": "paid",
+            "metadata": {
+                "order_id": str(order.id),
+                "user_id": str(user.id),
+            },
+            "client_reference_id": str(order.id),
+        }
+
+        with patch("core.views._get_stripe_sdk", return_value=stripe_sdk):
+            response = self.client.get(
+                reverse("cart"),
+                {"payment": "success", "session_id": "cs_test_paid"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, "paid")
+        self.assertEqual(response.context["cart_bootstrap"]["items_count"], 0)
+        self.assertEqual(response.context["payment_feedback"]["tone"], "success")
+        self.assertEqual(
+            response.context["payment_feedback"]["message"],
+            "Payment confirmed successfully. Your order has been saved.",
+        )
 
 
 class BookingFlowTests(TestCase):
