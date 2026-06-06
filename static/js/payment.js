@@ -936,7 +936,7 @@
     bindReviewOrderModal();
     bindPaymentModal();
     bindAddressModal();
-    currentAddress = normalizeAddress(DEFAULT_ADDRESS);
+    currentAddress = normalizeAddress(EMPTY_ADDRESS);
     renderAddress(currentAddress);
     setActiveMethod(activeMethod);
     if (!paymentElements.total) {
@@ -945,7 +945,7 @@
     Promise.all([fetchCartItems(), loadAddressFromBackend()])
       .then(function (results) {
         var items = results[0] || [];
-        var address = results[1] || DEFAULT_ADDRESS;
+        var address = results[1] || EMPTY_ADDRESS;
         renderAddress(address);
         renderPaymentOptions(items);
       })
