@@ -453,6 +453,61 @@ class PackageGalleryTests(TestCase):
         self.assertContains(response, "Luxury Christmas Tree")
         self.assertNotContains(response, "Christmas Decorations Dummy Package 1")
 
+    def test_home_page_trending_mixes_multiple_package_categories(self):
+        Package.objects.create(
+            name="Birthday One",
+            category="Birthday",
+            base_price="100.00",
+            summary="Birthday package one.",
+            image_url="images/birthday_demo.jpg",
+            status="published",
+        )
+        Package.objects.create(
+            name="Birthday Two",
+            category="Birthday",
+            base_price="110.00",
+            summary="Birthday package two.",
+            image_url="images/bday_demo.png",
+            status="published",
+        )
+        Package.objects.create(
+            name="Anniversary Glow",
+            category="Anniversary",
+            base_price="140.00",
+            summary="Anniversary package.",
+            image_url="images/anniversary_demo.jpeg",
+            status="published",
+        )
+        Package.objects.create(
+            name="Festival Magic",
+            category="Festival",
+            base_price="150.00",
+            summary="Festival package.",
+            image_url="images/christmas_demo.jpeg",
+            status="published",
+        )
+        Package.objects.create(
+            name="Proposal Luxe",
+            category="Surprise",
+            base_price="160.00",
+            summary="Surprise package.",
+            image_url="images/propose_1.jpg",
+            status="published",
+        )
+
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
+        trending = response.context["home_trending_packages"]
+        self.assertEqual(
+            [item["name"] for item in trending[:4]],
+            ["Birthday One", "Anniversary Glow", "Festival Magic", "Proposal Luxe"],
+        )
+        self.assertEqual(
+            [_normalize for _normalize in [item["filterCategory"] for item in trending[:4]]],
+            ["birthday", "anniversary", "festival", "surprise"],
+        )
+
 
 class StripeCheckoutFlowTests(TestCase):
     def test_cart_success_redirect_marks_order_paid_and_clears_active_cart(self):

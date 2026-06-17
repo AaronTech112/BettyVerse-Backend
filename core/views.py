@@ -291,6 +291,36 @@ def _package_matches_search_query(package_data, search_query):
     return all(term in haystack for term in terms)
 
 
+def _build_mixed_home_trending_packages(packages_bootstrap, limit=10):
+    if limit <= 0:
+        return []
+
+    grouped_packages = {}
+    category_order = []
+    for package_data in packages_bootstrap:
+        category_key = _normalize_package_filter_category(package_data.get("category"))
+        if category_key not in grouped_packages:
+            grouped_packages[category_key] = []
+            category_order.append(category_key)
+        grouped_packages[category_key].append(package_data)
+
+    selected = []
+    while len(selected) < limit:
+        added_in_round = False
+        for category_key in category_order:
+            category_packages = grouped_packages.get(category_key) or []
+            if not category_packages:
+                continue
+            selected.append(category_packages.pop(0))
+            added_in_round = True
+            if len(selected) >= limit:
+                break
+        if not added_in_round:
+            break
+
+    return selected
+
+
 def _get_or_create_cart_order(user):
     order = (
         Order.objects.filter(user=user, status="pending", booking__isnull=True)
@@ -479,7 +509,10 @@ class HomeView(TemplateView):
             _serialize_package_bootstrap(package)
             for package in packages_qs
         ]
-        context["home_trending_packages"] = context["packages_bootstrap"][:10]
+        context["home_trending_packages"] = _build_mixed_home_trending_packages(
+            context["packages_bootstrap"],
+            limit=10,
+        )
         return context
 
 
