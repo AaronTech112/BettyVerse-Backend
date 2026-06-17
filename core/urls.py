@@ -102,6 +102,7 @@ urlpatterns = [
     path('about.html', AboutView.as_view(), name='about_html'),
     path('services.html', ServicesView.as_view(), name='services_html'),
     path('packages.html', PackagesView.as_view(), name='packages_html'),
+    path('packages/packages.html', PackagesView.as_view(), name='packages_nested_html'),
     path('booking.html', BookingView.as_view(), name='booking_html'),
     path('cart.html', CartView.as_view(), name='cart_html'),
     path('blog.html', BlogView.as_view(), name='blog_html'),

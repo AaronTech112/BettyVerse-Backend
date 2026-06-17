@@ -418,6 +418,24 @@ class PackageGalleryTests(TestCase):
         self.assertEqual(len(bootstrap), 1)
         self.assertEqual(bootstrap[0]["name"], "Luxury Christmas Tree")
 
+    def test_legacy_nested_packages_html_route_still_renders_filtered_results(self):
+        Package.objects.create(
+            name="Baby Shower Luxe",
+            category="Surprise",
+            base_price="160.00",
+            summary="Baby shower setup.",
+            image_url="images/baby_shower2.jpg",
+            status="published",
+            tags="baby-shower",
+        )
+
+        response = self.client.get("/packages/packages.html", {"filter": "surprise", "q": "baby shower"})
+
+        self.assertEqual(response.status_code, 200)
+        bootstrap = response.context["packages_bootstrap"]
+        self.assertEqual(len(bootstrap), 1)
+        self.assertEqual(bootstrap[0]["name"], "Baby Shower Luxe")
+
     def test_packages_page_renders_package_cards_directly_from_backend_data(self):
         Package.objects.create(
             name="Luxury Christmas Tree",
