@@ -206,6 +206,11 @@ if importlib.util.find_spec('whitenoise') is not None:
             'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
         }
     }
+    _raw_whitenoise_manifest_strict = os.environ.get('WHITENOISE_MANIFEST_STRICT', '').strip().lower()
+    if _raw_whitenoise_manifest_strict:
+        WHITENOISE_MANIFEST_STRICT = _raw_whitenoise_manifest_strict in {'1', 'true', 'yes', 'y', 'on'}
+    else:
+        WHITENOISE_MANIFEST_STRICT = False
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
