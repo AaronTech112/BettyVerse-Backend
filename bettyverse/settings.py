@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import importlib.util
 import os
 from pathlib import Path
 
@@ -21,12 +22,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-10&v)+@hv7g8)b9mc-1=0l98iy29itq-4vbni&okx24(j__=!v'
+SECRET_KEY = (
+    os.environ.get('DJANGO_SECRET_KEY')
+    or os.environ.get('SECRET_KEY')
+    or 'django-insecure-10&v)+@hv7g8)b9mc-1=0l98iy29itq-4vbni&okx24(j__=!v'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+_raw_debug = os.environ.get('DJANGO_DEBUG')
+if _raw_debug is None:
+    DEBUG = os.environ.get('RAILWAY_ENVIRONMENT') is None
+else:
+    DEBUG = _raw_debug.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
-ALLOWED_HOSTS = ['*']
+_allowed_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').strip()
+if _allowed_hosts:
+    ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+_railway_public_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
+if _railway_public_domain and _railway_public_domain not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_railway_public_domain)
 
 
 # Application definition
@@ -55,6 +72,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if importlib.util.find_spec('whitenoise') is not None:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'bettyverse.urls'
 
@@ -86,6 +106,18 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+_database_url = os.environ.get('DATABASE_URL', '').strip()
+if _database_url and importlib.util.find_spec('dj_database_url') is not None:
+    import dj_database_url
+
+    DATABASES = {
+        'default': dj_database_url.parse(
+            _database_url,
+            conn_max_age=600,
+            ssl_require=not DEBUG,
+        )
+    }
 
 
 # Password validation
@@ -122,18 +154,58 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static')
+    BASE_DIR / 'static'
 ]
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
-# Keep uploaded package images in their current location so existing uploads continue to resolve.
-MEDIA_ROOT = BASE_DIR
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', str(BASE_DIR / 'media')))
+
+_raw_csrf_trusted_origins = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').strip()
+if _raw_csrf_trusted_origins:
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip() for o in _raw_csrf_trusted_origins.split(',') if o.strip()
+    ]
+elif _railway_public_domain:
+    CSRF_TRUSTED_ORIGINS = [f'https://{_railway_public_domain}']
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+_raw_ssl_redirect = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', '').strip().lower()
+SECURE_SSL_REDIRECT = _raw_ssl_redirect in {'1', 'true', 'yes', 'y', 'on'}
+
+_raw_cookie_secure = os.environ.get('DJANGO_SECURE_COOKIES', '').strip().lower()
+_secure_cookies = _raw_cookie_secure in {'1', 'true', 'yes', 'y', 'on'}
+SESSION_COOKIE_SECURE = _secure_cookies
+CSRF_COOKIE_SECURE = _secure_cookies
+
+_raw_hsts_seconds = os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '').strip()
+SECURE_HSTS_SECONDS = int(_raw_hsts_seconds) if _raw_hsts_seconds.isdigit() else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', '').strip().lower() in {
+    '1',
+    'true',
+    'yes',
+    'y',
+    'on',
+}
+SECURE_HSTS_PRELOAD = os.environ.get('DJANGO_SECURE_HSTS_PRELOAD', '').strip().lower() in {
+    '1',
+    'true',
+    'yes',
+    'y',
+    'on',
+}
+
+if importlib.util.find_spec('whitenoise') is not None:
+    STORAGES = {
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        }
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
@@ -149,8 +221,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_TIMEOUT = 20
-EMAIL_HOST_USER = os.environ.get('BETTYVERSE_EMAIL_HOST_USER', 'Bettyverse2026@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('BETTYVERSE_EMAIL_HOST_PASSWORD', 'emfy kbfh lkdr zznt')
+EMAIL_HOST_USER = os.environ.get('BETTYVERSE_EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('BETTYVERSE_EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = f'BettyVerse <{EMAIL_HOST_USER}>'
 PASSWORD_RESET_BASE_URL = os.getenv("BETTYVERSE_PUBLIC_BASE_URL", "").strip().rstrip("/")
-
