@@ -29,21 +29,8 @@ SECRET_KEY = (
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-_raw_debug = os.environ.get('DJANGO_DEBUG')
-if _raw_debug is None:
-    DEBUG = os.environ.get('RAILWAY_ENVIRONMENT') is None
-else:
-    DEBUG = _raw_debug.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
-
-_allowed_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '').strip()
-if _allowed_hosts:
-    ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()]
-else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-
-_railway_public_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
-if _railway_public_domain and _railway_public_domain not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append(_railway_public_domain)
+DEBUG = True
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
