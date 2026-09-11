@@ -203,7 +203,7 @@ SECURE_HSTS_PRELOAD = os.environ.get('DJANGO_SECURE_HSTS_PRELOAD', '').strip().l
 if importlib.util.find_spec('whitenoise') is not None:
     STORAGES = {
         'staticfiles': {
-            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+            'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
         }
     }
     _raw_whitenoise_manifest_strict = os.environ.get('WHITENOISE_MANIFEST_STRICT', '').strip().lower()
