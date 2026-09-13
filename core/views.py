@@ -1,6 +1,8 @@
 import json
 import importlib
+import os
 import random
+from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -51,6 +53,54 @@ except Exception:  # pragma: no cover - optional dependency fallback
 
 
 VERIFICATION_CODE_TTL_MINUTES = 15
+
+
+_MEDIA_CASE_MAP = None
+
+
+def _get_media_case_map():
+    global _MEDIA_CASE_MAP
+    if _MEDIA_CASE_MAP is not None:
+        return _MEDIA_CASE_MAP
+
+    media_root = Path(str(getattr(settings, "MEDIA_ROOT", "")))
+    packages_dir = media_root / "packages"
+    mapping = {}
+    if packages_dir.exists():
+        for root, _, files in os.walk(packages_dir):
+            root_path = Path(root)
+            for filename in files:
+                abs_path = root_path / filename
+                try:
+                    rel_path = abs_path.relative_to(media_root).as_posix()
+                except Exception:
+                    continue
+                mapping[rel_path.lower()] = rel_path
+
+    _MEDIA_CASE_MAP = mapping
+    return mapping
+
+
+def _storage_url_case_insensitive(storage, name):
+    if not name:
+        return ""
+
+    normalized_name = str(name).replace("\\", "/")
+    try:
+        if storage.exists(normalized_name):
+            return storage.url(normalized_name)
+    except Exception:
+        return storage.url(normalized_name)
+
+    alt = _get_media_case_map().get(normalized_name.lower())
+    if not alt:
+        return ""
+    try:
+        if storage.exists(alt):
+            return storage.url(alt)
+    except Exception:
+        return storage.url(alt)
+    return ""
 
 
 def _get_stripe_sdk():
@@ -202,11 +252,7 @@ def _send_newsletter_welcome_email(subscriber):
 
 def _resolve_package_image_url(package):
     if package.image:
-        try:
-            if package.image.name and package.image.storage.exists(package.image.name):
-                return package.image.url
-        except Exception:
-            return package.image.url
+        return _storage_url_case_insensitive(package.image.storage, package.image.name)
     if package.image_url:
         if package.image_url.startswith("http://") or package.image_url.startswith("https://") or package.image_url.startswith("/"):
             return package.image_url
