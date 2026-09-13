@@ -3,17 +3,16 @@
 
 /*--------------------------------------------------------------------- import Files ---------------------------------------------------------------------*/
 
-@import url(animate.min.css);
-@import url(normalize.css);
-@import url(icomoon.css);
-@import url(css/font-awesome.min.css);
-@import url(meanmenu.css);
-@import url(owl.carousel.min.css);
-@import url(swiper.min.css);
-@import url(slick.css);
-@import url(jquery.fancybox.min.css);
-@import url(jquery-ui.css);
-@import url(nice-select.css);
+@import url(../animate.min.css);
+@import url(../normalize.css);
+@import url(../icomoon.css);
+@import url(../font-awesome.min.css);
+@import url(../meanmenu.css);
+@import url(../owl.carousel.min.css);
+@import url(../slick.css);
+@import url(../jquery.fancybox.min.css);
+@import url(../jquery-ui.css);
+@import url(../nice-select.css);
 
 /*--------------------------------------------------------------------- skeleton ---------------------------------------------------------------------*/
 
@@ -514,17 +513,6 @@ button {
     box-shadow: 0 24px 60px rgba(2,26,84,0.1);
 }
 
-.   padding: 18px;
-    background: #ffffff;
-    border-radius: 36px;
-    box-shadow: 0 30px 70px rgba(255, 101, 120, 0.15);
-}
-
-.banner_img img {
-    border-radius: 32px;
-    transform: translateZ(0);
-}
-
 .banner_img::before {
     content: '';
     position: absolute;
@@ -671,7 +659,7 @@ button {
     content: '';
     width: 120px;
     height: 140px;
-    background-image: url(../images/img-6.png);
+    background-image: url(../../images/img-6.png);
     background-size: 100%;
     background-repeat: no-repeat;
     bottom: 80px;
@@ -682,7 +670,7 @@ button {
     content: '';
     width: 120px;
     height: 140px;
-    background-image: url(../images/img-6.png);
+    background-image: url(../../images/img-6.png);
     background-size: 100%;
     background-repeat: no-repeat;
     top: 180px;
@@ -927,7 +915,7 @@ button {
     content: '';
     width: 120px;
     height: 102px;
-    background-image: url(../images/quick-icon.png);
+    background-image: url(../../images/quick-icon.png);
     background-size: 100%;
     left: 40px;
     top: 290px;
@@ -938,7 +926,7 @@ button {
     content: '';
     width: 120px;
     height: 102px;
-    background-image: url(../images/quick-icon.png);
+    background-image: url(../../images/quick-icon.png);
     background-size: 100%;
     right: 40px;
     top: 290px;
