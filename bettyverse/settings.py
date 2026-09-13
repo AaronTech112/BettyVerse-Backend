@@ -21,10 +21,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-10&v)+@hv7g8)b9mc-1=0l98iy29itq-4vbni&okx24(j__=!v'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-10&v)+@hv7g8)b9mc-1=0l98iy29itq-4vbni&okx24(j__=!v')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+is_railway = bool(os.getenv('RAILWAY_PROJECT_ID') or os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_SERVICE_ID'))
+debug_env = os.getenv('DJANGO_DEBUG')
+DEBUG = (debug_env.strip() == '1') if debug_env is not None else (not is_railway)
 
 ALLOWED_HOSTS = ['*']
 
@@ -48,6 +49,7 @@ AUTHENTICATION_BACKENDS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -122,18 +124,24 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static')
+    BASE_DIR / 'static'
 ]
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 MEDIA_URL = '/media/'
 # Keep uploaded package images in their current location so existing uploads continue to resolve.
-MEDIA_ROOT = os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR)
+MEDIA_ROOT = BASE_DIR
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
