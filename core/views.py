@@ -202,7 +202,11 @@ def _send_newsletter_welcome_email(subscriber):
 
 def _resolve_package_image_url(package):
     if package.image:
-        return package.image.url
+        try:
+            if package.image.name and package.image.storage.exists(package.image.name):
+                return package.image.url
+        except Exception:
+            return package.image.url
     if package.image_url:
         if package.image_url.startswith("http://") or package.image_url.startswith("https://") or package.image_url.startswith("/"):
             return package.image_url
