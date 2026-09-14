@@ -139,7 +139,7 @@ STORAGES = {
         'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
     },
 }
-MEDIA_URL = '/media/'
+MEDIA_URL = '/packages/'
 # Keep uploaded package images in their current location so existing uploads continue to resolve.
 MEDIA_ROOT = BASE_DIR
 
